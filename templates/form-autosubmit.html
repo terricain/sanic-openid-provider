@@ -1,0 +1,22 @@
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en">
+    <body onload="document.forms[0].submit()">
+        <noscript>
+            <p><strong>Note:</strong> Since your browser does not support JavaScript, you must press the Continue button once to proceed.</p>
+        </noscript>
+        <form action="{{ form_url }}" method="post">
+            <div>
+                {% for key, value in query_params.items() %}
+                <input type="hidden" name="{{ key }}" value="{{ value }}">
+                {% endfor %}
+                {% for key, value in query_fragment.items() %}
+                <input type="hidden" name="{{ key }}" value="{{ value }}">
+                {% endfor %}
+            </div>
+            <noscript>
+                <div>
+                    <input type="submit" value="Continue"/>
+                </div>
+            </noscript>
+        </form>
+    </body>
+</html>

@@ -4,19 +4,40 @@ import aiohttp
 import logging
 from typing import Tuple, Union, Dict, Optional, Any, AsyncGenerator
 import jwcrypto.jwk
+import jwcrypto.jwe
+import jwcrypto.common
+import jwcrypto.jws
+import jose.jws
 
 
 logger = logging.getLogger('oicp')
 
 
 class Client(object):
-    def __init__(self, id_: str, name: str, secret: str, type_: str, require_consent: bool,
-                 reuse_consent: bool, scopes: Tuple[str, ...], callback_urls: Tuple[str, ...],
-                 response_types: Tuple[str, ...], jwt_algo: str, prompts: Tuple[str, ...],
-                 application_type: str=None, jwks_url: Tuple[str, ...]=None, post_logout_redirect_urls: Tuple[str, ...]=None,
-                 request_urls: Tuple[str, ...]=None, grant_types: Tuple[str, ...] = None, contacts: Tuple[str, ...]=None,
+    def __init__(self,
+                 id_: str,
+                 name: str,
+                 secret: str,
+                 type_: str,
+                 require_consent: bool,
+                 reuse_consent: bool,
+                 scopes: Tuple[str, ...],
+                 callback_urls: Tuple[str, ...],
+                 response_types: Tuple[str, ...],
+                 jwt_algo: str,
+                 prompts: Tuple[str, ...],
+                 application_type: str=None,
+                 jwks_url: Tuple[str, ...]=None,
+                 post_logout_redirect_urls: Tuple[str, ...]=None,
+                 request_urls: Tuple[str, ...]=None,
+                 grant_types: Tuple[str, ...] = None,
+                 contacts: Tuple[str, ...]=None,
                  expires_at: Optional[int]=None,
-                 sector_identifier_uri=None):
+                 sector_identifier_uri: str=None,
+                 userinfo_signed_response_alg: str=None,
+                 userinfo_encrypted_response_alg: str=None,
+                 userinfo_encrypted_response_enc: str=None
+                 ):
         self.id = id_
         self.name = name
         self.secret = secret
@@ -37,26 +58,122 @@ class Client(object):
         self.contacts = contacts
         self.expires_at = expires_at
         self.sector_identifier_uri = sector_identifier_uri
+        self.userinfo_signed_response_alg = userinfo_signed_response_alg
+        self.userinfo_encrypted_response_alg = userinfo_encrypted_response_alg
+        self.userinfo_encrypted_response_enc = userinfo_encrypted_response_enc
 
         self.access_token = uuid.uuid4().hex
 
         self.jwk = jwcrypto.jwk.JWKSet()
 
-    async def sign(self, payload, jwk_algo=None):
+    async def sign(self, payload, jwk_algo=None, jwk_set: jwcrypto.jwk.JWKSet=None):
         jwk_algo = jwk_algo if jwk_algo else self.jwt_algo
 
         if jwk_algo == 'ES256':
-            raise NotImplementedError()  # -- TODO use IDP key
-        if jwk_algo == 'RS256':
-            raise NotImplementedError()  # -- TODO use IDP key
+            if not jwk_set:
+                raise RuntimeError('No EC Keys')
+
+            for key in jwk_set:
+                if key.key_type == 'EC':
+                    payload = jwt.encode(
+                        payload=payload,
+                        key=key.export_to_pem(private_key=True, password=None),
+                        algorithm='ES256',
+                        headers={'kid': key.key_id}
+                    )
+                    break
+            else:
+                raise RuntimeError('No EC Keys')
+
+        elif jwk_algo == 'RS256':
+            if not jwk_set:
+                raise RuntimeError('No RSA Keys')
+
+            for key in jwk_set:
+                if key.key_type == 'RSA':
+                    payload = jwt.encode(
+                        payload=payload,
+                        key=key.export_to_pem(private_key=True, password=None),
+                        algorithm='RS256',
+                        headers={'kid': key.key_id}
+                    )
+                    break
+            else:
+                raise RuntimeError('No RSA Keys')
+
         elif jwk_algo == 'HS256' or jwk_algo is None:
             payload = jwt.encode(payload=payload, key=self.secret, algorithm='HS256')
         elif jwk_algo == 'none':
             payload = jwt.encode(payload=payload, key=None, algorithm='none')
         else:
-            raise Exception('Unsupported key algorithm.')
+            raise Exception('Unsupported key algorithm {0}'.format(jwk_algo))
+
+        if isinstance(payload, bytes):
+            payload = payload.decode()
 
         return payload
+
+    async def jws_sign(self, payload: Any, jwk_set: jwcrypto.jwk.JWKSet=None, algo: str=None) -> str:
+        if not isinstance(payload, str):
+            payload = jwcrypto.common.json_encode(payload)
+
+        if jwk_set is None:
+            jwk_set = self.jwk
+
+        if algo == 'ES256':
+            if not jwk_set:
+                raise RuntimeError('No EC Keys')
+
+            for key in jwk_set:
+                if key.key_type == 'EC' and key._params.get('use', 'sig') == 'sig':
+                    payload = jwcrypto.jws.JWS(payload)
+                    payload.add_signature(key, None, {'alg': 'ES256'}, {'kid': key.key_id})
+                    break
+            else:
+                raise RuntimeError('No EC Keys')
+
+        elif algo == 'RS256':
+            if not jwk_set:
+                raise RuntimeError('No RSA Keys')
+
+            for key in jwk_set:
+                if key.key_type == 'RSA' and key._params.get('use', 'sig') == 'sig':
+                    payload = jwcrypto.jws.JWS(payload)
+                    payload.add_signature(key, None, {'alg': 'RS256'}, {'kid': key.key_id})
+                    break
+            else:
+                raise RuntimeError('No RSA Keys')
+
+        elif algo == 'HS256' or algo is None:
+            payload = jwcrypto.jws.JWS(payload)
+            payload.add_signature(self.secret, None, {'alg': 'HS256'})
+        else:
+            raise Exception('Unsupported key algorithm {0}'.format(algo))
+
+        return payload.serialize(compact=True)
+
+    async def jws_encrypt(self, payload: Any, alg: str, enc: str, jwk_set: jwcrypto.jwk.JWKSet=None) -> str:
+        if alg == 'RSA1_5':
+            key_type = 'RSA'
+        else:
+            raise RuntimeError('Unknown JWE alg {0}'.format(alg))
+
+        # Look for client key to encrypt with
+        if jwk_set is None:
+            jwk_set = self.jwk
+        for key in jwk_set:
+            if key.key_type == key_type and key._params.get('use', 'enc') == 'enc':
+                break
+        else:
+            raise RuntimeError('Could not find key for {0}'.format(key_type))
+
+        payload = jwcrypto.jwe.JWE(
+            jwcrypto.common.json_encode(payload),
+            recipient=key,
+            protected={'alg': alg, 'enc': enc, 'typ': 'JWE', 'kid': key.key_id}
+        )
+
+        return payload.serialize(compact=True)
 
     async def load_jwks(self, jwk_dict: Dict[str, Any]=None):
 
@@ -125,25 +242,44 @@ class InMemoryClientStore(ClientStore):
                          jwt_algo: str=None,
                          prompts: Tuple[str, ...]=None,
                          application_type: str=None,
-
                          grant_types: Tuple[str, ...] = None,
                          contacts: Tuple[str, ...] = None,
                          expires_at: Optional[int]= None,
                          jwks_url: Tuple[str, ...]=None,
                          post_logout_redirect_urls: Tuple[str, ...]=None,
                          request_urls: Tuple[str, ...] = None,
-                         sector_identifier_uri: str=None
-
-
+                         sector_identifier_uri: str=None,
+                         userinfo_signed_response_alg: str=None,
+                         userinfo_encrypted_response_alg: str = None,
+                         userinfo_encrypted_response_enc: str = None
                          ) -> Tuple[bool, Union[str, Client]]:
         valid, err = await self.validate_client(id_, name, secret, type_, callback_urls)
         if not valid:
             return False, err
 
-        client = Client(id_, name, secret, type_, require_consent, reuse_consent,
-                        scopes, callback_urls, response_types, jwt_algo, prompts,
-                        contacts, jwks_url, post_logout_redirect_urls, request_urls,
-                        sector_identifier_uri)
+        client = Client(id_=id_,
+                        name=name,
+                        secret=secret,
+                        type_=type_,
+                        require_consent=require_consent,
+                        reuse_consent=reuse_consent,
+                        scopes=scopes,
+                        callback_urls=callback_urls,
+                        response_types=response_types,
+                        jwt_algo=jwt_algo,
+                        prompts=prompts,
+                        application_type=application_type,
+                        jwks_url=jwks_url,
+                        post_logout_redirect_urls=post_logout_redirect_urls,
+                        grant_types=grant_types,
+                        contacts=contacts,
+                        expires_at=expires_at,
+                        sector_identifier_uri=sector_identifier_uri,
+                        userinfo_signed_response_alg=userinfo_signed_response_alg,
+                        request_urls=request_urls,
+                        userinfo_encrypted_response_alg=userinfo_encrypted_response_alg,
+                        userinfo_encrypted_response_enc=userinfo_encrypted_response_enc)
+
         self._clients[client.id] = client
 
         logger.info('Added client {0} - {1}'.format(id_, name))

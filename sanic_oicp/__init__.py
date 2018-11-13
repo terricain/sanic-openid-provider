@@ -4,6 +4,7 @@ import hashlib
 import binascii
 import datetime
 import logging
+import jwcrypto.jwk
 
 from typing import Union, Tuple, Dict, Any, Type, Optional, List
 
@@ -32,7 +33,8 @@ def setup(app: sanic.Sanic,
           token_expire: int=86400,
           code_expire: int=86400,
           grant_type_password: bool=False,
-          user_manager_class: Type[UserManager]=UserManager):
+          user_manager_class: Type[UserManager]=UserManager,
+          private_keys: List[str]=None):
 
     app.add_route(well_known_config_handler, wellknown_config_path, frozenset({'GET'}))
     app.add_route(well_known_finger_handler, wellknown_finger_path, frozenset({'GET'}))
@@ -42,6 +44,9 @@ def setup(app: sanic.Sanic,
     app.add_route(authorize_handler, authorize_path, frozenset({'GET', 'POST'}))
     app.add_route(client_register_handler, client_register_path, frozenset({'GET', 'POST'}))
 
+    app.config['oicp_provider'] = Provider()
+    app.config['oicp_provider'].load_keys(private_keys)
+
     app.config['oicp_user'] = user_manager_class()
     app.config['oicp_code'] = InMemoryCodeStore()
     app.config['oicp_client'] = InMemoryClientStore()
@@ -50,6 +55,20 @@ def setup(app: sanic.Sanic,
     app.config['oicp_token_expire'] = token_expire
     app.config['oicp_code_expire'] = code_expire
     app.config['oicp_grant_type_password'] = grant_type_password
+
+
+class Provider(object):
+    def __init__(self):
+        self.jwk_set = jwcrypto.jwk.JWKSet()
+
+    def load_keys(self, jwk_pem_files: List[str]=None):
+        if jwk_pem_files:
+            for pem_file in jwk_pem_files:
+                pem = open(pem_file, 'rb').read()
+
+                jwk_obj = jwcrypto.jwk.JWK.from_pem(pem)
+                self.jwk_set.add(jwk_obj)
+                logger.info('Added {0} key {1}'.format(jwk_obj.key_type, jwk_obj.key_id))
 
 
 class CodeStore(object):

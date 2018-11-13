@@ -1,14 +1,8 @@
 import datetime
-import uuid
-import json
-import hashlib
+import os
 import logging
-import base64
-import binascii
-from typing import Dict, Any, Optional, Tuple
 from urllib.parse import unquote
 
-import jwt
 import sanic.request
 import sanic.response
 from sanic_jinja2 import SanicJinja2
@@ -16,8 +10,6 @@ from sanic_session import Session, InMemorySessionInterface
 from jinja2 import FileSystemLoader
 
 from sanic_oicp import setup
-
-import settings
 
 
 oicp_logger = logging.getLogger('oicp')
@@ -28,73 +20,73 @@ app = sanic.Sanic()
 session = Session(app, interface=InMemorySessionInterface())
 jinja = SanicJinja2(app, loader=FileSystemLoader('./templates'), enable_async=True)
 
-setup(app)
+RESOURCES_DIR = os.path.join(os.path.dirname(__file__), 'resources')
 
-TOKEN_STORE = {}
-CODE_STORE = {}
+setup(app, private_keys=[
+    os.path.join(RESOURCES_DIR, 'ec.pem'),
+    os.path.join(RESOURCES_DIR, 'rsa.pem')
+])
+
+#
+# def create_client_credentials_response_dic(request: sanic.request.Request, params: Dict[str, Any]) -> Dict[str, Any]:
+#     # See https://tools.ietf.org/html/rfc6749#section-4.4.3
+#
+#     token = create_token(
+#         user=None,
+#         client=params['client_id'],
+#         scope=params['client_data']['scopes'],
+#         specific_claims=params['specific_claims'])
+#
+#     TOKEN_STORE[token['access_token']] = token
+#
+#     return {
+#         'access_token': token['access_token'],
+#         'expires_in': settings.OIDC_PROVIDER_TOKEN_EXPIRE,
+#         'token_type': 'bearer',
+#         'scope': params['client_data']['scopes'],
+#     }
+#
+#
+# def create_access_token_response_dic(request: sanic.request.Request, params: Dict[str, Any]) -> Dict[str, Any]:
+#     # See https://tools.ietf.org/html/rfc6749#section-4.3
+#
+#     token = create_token(
+#         user=None,
+#         client=params['client_id'],
+#         scope=params['client_data']['scopes'],
+#         specific_claims=params['specific_claims'])
+#
+#     id_token_dic = create_id_token(
+#         token=token,
+#         user=request['session']['user'],
+#         aud=params['client_id'],
+#         nonce=params['code_obj']['nonce'],
+#         at_hash=token['at_hash'],
+#         request=request,
+#         scope=token['scope'],
+#         client_data=params['client_data']
+#     )
+#
+#     token['id_token'] = id_token_dic
+#     TOKEN_STORE[token['access_token']] = token
+#
+#     if params['client_data']['jwt_alg'] == 'RS256':
+#         raise NotImplementedError()  # TODO
+#     elif params['client_data']['jwt_alg'] == 'HS256':
+#         id_token = jwt.encode(payload=id_token_dic, key=params['client_data']['secret'], algorithm=params['client_data']['jwt_alg'])
+#     else:
+#         raise Exception('Unsupported key algorithm.')
+#
+#     return {
+#         'access_token': token['access_token'],
+#         'refresh_token': token['refresh_token'],
+#         'expires_in': settings.OIDC_PROVIDER_TOKEN_EXPIRE,
+#         'token_type': 'bearer',
+#         'id_token': id_token,
+#     }
 
 
-
-
-def create_client_credentials_response_dic(request: sanic.request.Request, params: Dict[str, Any]) -> Dict[str, Any]:
-    # See https://tools.ietf.org/html/rfc6749#section-4.4.3
-
-    token = create_token(
-        user=None,
-        client=params['client_id'],
-        scope=params['client_data']['scopes'],
-        specific_claims=params['specific_claims'])
-
-    TOKEN_STORE[token['access_token']] = token
-
-    return {
-        'access_token': token['access_token'],
-        'expires_in': settings.OIDC_PROVIDER_TOKEN_EXPIRE,
-        'token_type': 'bearer',
-        'scope': params['client_data']['scopes'],
-    }
-
-
-def create_access_token_response_dic(request: sanic.request.Request, params: Dict[str, Any]) -> Dict[str, Any]:
-    # See https://tools.ietf.org/html/rfc6749#section-4.3
-
-    token = create_token(
-        user=None,
-        client=params['client_id'],
-        scope=params['client_data']['scopes'],
-        specific_claims=params['specific_claims'])
-
-    id_token_dic = create_id_token(
-        token=token,
-        user=request['session']['user'],
-        aud=params['client_id'],
-        nonce=params['code_obj']['nonce'],
-        at_hash=token['at_hash'],
-        request=request,
-        scope=token['scope'],
-        client_data=params['client_data']
-    )
-
-    token['id_token'] = id_token_dic
-    TOKEN_STORE[token['access_token']] = token
-
-    if params['client_data']['jwt_alg'] == 'RS256':
-        raise NotImplementedError()  # TODO
-    elif params['client_data']['jwt_alg'] == 'HS256':
-        id_token = jwt.encode(payload=id_token_dic, key=params['client_data']['secret'], algorithm=params['client_data']['jwt_alg'])
-    else:
-        raise Exception('Unsupported key algorithm.')
-
-    return {
-        'access_token': token['access_token'],
-        'refresh_token': token['refresh_token'],
-        'expires_in': settings.OIDC_PROVIDER_TOKEN_EXPIRE,
-        'token_type': 'bearer',
-        'id_token': id_token,
-    }
-
-
-@app.route('/login', methods=['GET', 'POST'])  # '/sso/oidc/authorize'
+@app.route('/login', methods=['GET', 'POST'])
 async def login(request: sanic.request.Request) -> sanic.response.BaseHTTPResponse:
     if request.method == 'GET':
 
@@ -137,7 +129,7 @@ async def startup(app, loop):
         id_='kbyuFDidLLm280LIwVFiazOqjO3ty8KH',
         name='TestClient',
         secret='60Op4HFM0I8ajz0WdiStAbziZ-VFQttXuxixHHs2R7r7-CW8GR79l-mmLqMhc-Sa',
-        type_='confidential',  # TODO ??? confidential / public?
+        type_='public',  # public or pairwise
         require_consent=False,
         reuse_consent=False,
         scopes=['openid', 'profile', 'email', 'phone', 'address'],
@@ -145,12 +137,14 @@ async def startup(app, loop):
             'https://openidconnect.net/callback',
             "https://op.certification.openid.net:60407/authz_cb",
             "https://op.certification.openid.net:60407/authz_post",
-            'https://testjenkins.ficoccs-prod.net/securityRealm/finishLogin'
+            'https://testjenkins.ficoccs-prod.net/securityRealm/finishLogin',
+            'http://127.0.0.1:3000/cb1',
+            'http://127.0.0.1:3000/callback'
         ],
         response_types=['code'],
-        jwt_algo='HS256',
+        jwt_algo='ES256',
         prompts=['consent', 'login', 'none'],
-        application_type='web'
+        application_type='web',
     )
 
 

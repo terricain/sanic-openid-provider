@@ -1,9 +1,9 @@
+import aiohttp
 import uuid
 import logging
 
 import sanic.request
 import sanic.response
-import jwcrypto.jwk
 
 from sanic_oicp.utils import get_scheme
 from sanic_oicp.validation import *
@@ -27,9 +27,9 @@ async def well_known_config_handler(request: sanic.request.Request) -> sanic.res
         # 'end_session_endpoint'
         # 'introspection_endpoint'
 
-        'request_parameter_supported': False,
+        'request_parameter_supported': True,
         'response_types_supported': ['code', 'id_token', 'id_token token', 'code token', 'code id_token', 'code id_token token'],
-        'id_token_signing_alg_values_supported': ['HS256', 'RS256'],
+        'id_token_signing_alg_values_supported': ['HS256', 'RS256', 'ES256'],
 
         'subject_types_supported': ['public', 'pairwise'],  # or pairwise
         'token_endpoint_auth_methods_supported': [
@@ -84,9 +84,9 @@ async def jwk_handler(request: sanic.request.Request) -> sanic.response.BaseHTTP
 
     keys = []
 
-    # async for client in request.app.config['oicp_client'].all():
-    #     for jwk in client.jwk:
-    #         keys.append(jwk.export(False))
+    # request.app.config['oicp_provider'].jwk_set
+    for key in request.app.config['oicp_provider'].jwk_set:
+        keys.append(key._public_params())  # so we dont get json strings
 
     return sanic.response.json({'keys': keys})
 
@@ -95,6 +95,8 @@ async def userinfo_handler(request: sanic.request.Request) -> sanic.response.Bas
     try:
         params = await validate_userinfo_params(request)
         token = params['token']
+
+        client = await request.app.config['oicp_client'].get_client_by_id(token['client'])
 
         if token.get('specific_claims', {}) is None:
             specific_claims = {}
@@ -109,10 +111,21 @@ async def userinfo_handler(request: sanic.request.Request) -> sanic.response.Bas
         }
         result.update(claims)
 
-        return sanic.response.json(result, headers={'Cache-Control': 'no-store', 'Pragma': 'no-cache'})
+        if client.userinfo_signed_response_alg:
+            result = await client.jws_sign(result, algo=client.userinfo_signed_response_alg, jwk_set=request.app.config['oicp_provider'].jwk_set)
+
+        if client.userinfo_encrypted_response_alg:
+            result = await client.jws_encrypt(result,
+                                              alg=client.userinfo_encrypted_response_alg,
+                                              enc=client.userinfo_encrypted_response_enc,
+                                              jwk_set=None)
+
+        if isinstance(result, str):
+            return sanic.response.HTTPResponse(body=result, headers={'Cache-Control': 'no-store', 'Pragma': 'no-cache', 'Content-Type': 'application/jwt'})
+        else:
+            return sanic.response.json(result, headers={'Cache-Control': 'no-store', 'Pragma': 'no-cache'})
 
     except TokenError as error:
-
         return sanic.response.json(error.create_dict(), status=400)
 
 
@@ -149,6 +162,8 @@ async def client_register_handler(request: sanic.request.Request) -> sanic.respo
             result['sector_identifier_uri'] = client.sector_identifier_uri
         if client.jwt_algo:
             result['id_token_signed_response_alg'] = client.jwt_algo
+        if client.userinfo_signed_response_alg:
+            result['userinfo_signed_response_alg'] = client.userinfo_signed_response_alg
 
         status = 201
 
@@ -171,14 +186,39 @@ async def client_register_handler(request: sanic.request.Request) -> sanic.respo
         sector_identifier_uri = request.json.get('sector_identifier_uri')
         subject_type = request.json.get('subject_type', 'public')
 
+        # TODO request_object_signing_alg
+        #
+
         require_consent = request.json.get('require_consent') is True
         reuse_consent = request.json.get('reuse_consent') is True
         id_token_signed_response_alg = request.json.get('id_token_signed_response_alg')
+        userinfo_signed_response_alg = request.json.get('userinfo_signed_response_alg')
+        userinfo_encrypted_response_alg = request.json.get('userinfo_encrypted_response_alg')
+        userinfo_encrypted_response_enc = request.json.get('userinfo_encrypted_response_enc')
 
         for url in redirect_uris:
             if '#' in url:
                 # NO BAD, shouldnt have fragments in url
                 result = {'error': 'invalid_redirect_uri', 'error_description': 'Bad redirect uri {0}'.format(url)}
+                return sanic.response.json(result, status=400)
+
+        # Validate sector_identifier_uri, must contain a superset of redirect_uris
+        if sector_identifier_uri:
+            try:
+                async with aiohttp.ClientSession() as session:
+                    logger.info('Getting Sector Identifier URI {0}'.format(sector_identifier_uri))
+                    async with session.get(sector_identifier_uri) as resp:
+                        sector_json = await resp.json()
+                        if not isinstance(sector_json, list):
+                            raise Exception('sector identifier json is not a list')
+
+                        invalid_uris = set(redirect_uris) - set(sector_json)
+                        if invalid_uris:
+                            raise Exception('Invalid redirect uris: {0}'.format(invalid_uris))
+
+            except Exception as err:
+                logger.exception('Failed to get sector identifier uri', exc_info=err)
+                result = {'error': 'invalid_client_metadata', 'error_description': 'Failed to validate sector identifier uri, {0}'.format(err)}
                 return sanic.response.json(result, status=400)
 
         success, data = await request.app.config['oicp_client'].add_client(
@@ -199,7 +239,10 @@ async def client_register_handler(request: sanic.request.Request) -> sanic.respo
             prompts=prompt,
             post_logout_redirect_urls=post_logout_redirect_uris,
             request_urls=request_uris,
-            sector_identifier_uri=sector_identifier_uri
+            sector_identifier_uri=sector_identifier_uri,
+            userinfo_signed_response_alg=userinfo_signed_response_alg,
+            userinfo_encrypted_response_alg=userinfo_encrypted_response_alg,
+            userinfo_encrypted_response_enc=userinfo_encrypted_response_enc
         )
 
         if success:

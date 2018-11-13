@@ -1,86 +1,133 @@
-https://github.com/juanifioren/django-oidc-provider
+# Sanic OpenID Connect Provider
 
-discovery docuemnt url: 
-http://localhost:8000/.well-known/openid-configuration
-https://e5b00d1c.ngrok.io/.well-known/openid-configuration
+It's a work-in-progress, Alpha stage I would say. If anyone finds this useful / wants to use it, drop an issue I'd be
+more than happy to fix it up so its actually helpful to someone other than myself.
 
-webfinger url
-http://localhost:8000/.well-known/webfinger
-https://e5b00d1c.ngrok.io/.well-known/webfinger
+Last time I checked it passed around 75 / 93 of the OpenID Connect 
+Provider Certification tests that appear when you tick `webfinger`, `dynamic info discovery`, `dynamic client 
+registration` and select `code` response type.
+
+It's pretty usable for the authorization code flow. Still needs a fair amount of re-architecting and cleaning up but I'm
+trying to make it so you can plug it into various backends like DynamoDB/Redis for token/client storage.
+
+Docs and examples will be coming soon.
+
+## Testing 
+
+As said above it passes most of the OpenID tests I've ran against it. Below are the ones I haven't passed yet
+
+### Dynamic Client Registration
+
+Haven't yet stored those values on client registration
+* `OP-Registration-logo_uri`
+* `OP-Registration-policy_uri`
+* `OP-Registration-tos_uri`
+
+### Signature + Encryption
+
+Haven't figured out why the userinfo enc/sig doesnt work yet.
+* `OP-IDToken-SigEnc`
+* `OP-UserInfo-SigEnc`
+* `OP-request_uri-SigEnc`
+
+### Popup
+
+Doesnt display in a popup box
+* `OP-display-popup`
+
+### Misc Request Parameters
+
+Haven't dealt with this yet.
+* `OP-Req-acr_values`
+* `OP-Req-max_age=1`
+* `OP-Req-max_age=10000`
+
+### Key Rotation
+
+Need some methods to rotate keys
+* `OP-Rotation-OP-Enc`
+* `OP-Rotation-OP-Sig`
+* `OP-Rotation-RP-Enc`
+* `OP-Rotation-RP-Sig`
 
 
 
-authorization url: http://localhost:8000/sso/oidc/authorize 
-https://e5b00d1c.ngrok.io/sso/oidc/authorize
+## Key creation
 
+### RSA Key
+```bash
+openssl genrsa -nodes -out rsa.pem 4096
+```
 
+### ECDSA Key
 
-token url: http://localhost:8000/sso/oidc/token 
-https://e5b00d1c.ngrok.io/sso/oidc/token
+```bash
+openssl ecparam -name prime256v1 -genkey -noout -out ec.pem
+openssl ec -in ec.pem -pubout -out ec.pub
+```
 
+## OpenID Connect Node Example
+### app.js
+```javascript
+const express = require('express')
+const session = require('express-session');
+const OICStrategy = require('passport-openid-connect').Strategy;
+const app = express()
+const passport = require('passport');
 
+const port = 3000
 
-jwk url: http://localhost:8000/sso/oidc/jwk
-https://e5b00d1c.ngrok.io/sso/oidc/jwk
+app.use(session({ 
+    secret: 'words',
+    resave: true,
+    saveUninitialized: true
+}));
+app.use(passport.initialize());
+app.use(passport.session());
 
+const oic = new OICStrategy({
+  "issuerHost": "http://9765fb31.ngrok.io",
+  "client_id": "kbyuFDidLLm280LIwVFiazOqjO3ty8KH",
+  "client_secret": "60Op4HFM0I8ajz0WdiStAbziZ-VFQttXuxixHHs2R7r7-CW8GR79l-mmLqMhc-Sa",
+  "redirect_uri": "http://127.0.0.1:3000/callback",
+  "scope": "openid email profile"
+});
 
-userinfo
-https://e5b00d1c.ngrok.io/sso/oidc/userinfo
+passport.use(oic);
+passport.serializeUser(OICStrategy.serializeUser);
+passport.deserializeUser(OICStrategy.deserializeUser);
 
+app.get('/login', passport.authenticate('passport-openid-connect', {"successReturnToOrRedirect": "/"}))
+app.get('/callback', passport.authenticate('passport-openid-connect', {"callback": true, "successReturnToOrRedirect": "/"}))
 
-client id: kbyuFDidLLm280LIwVFiazOqjO3ty8KH
-client secret: 60Op4HFM0I8ajz0WdiStAbziZ-VFQttXuxixHHs2R7r7-CW8GR79l-mmLqMhc-Sa
-scope: openid profile email phone address
-callback: https://openidconnect.net/callback
+app.get('/', (req, res) => {
+    console.log(req.user)
+    res.json({
+        "hello": "world",
+        "user": req.user
+    })
+})
 
+app.listen(port, () => console.log(`Example OpenID Connect app listening on port ${port}!`))
+```
 
-discovery
-https://openid.net/specs/openid-connect-discovery-1_0.html
-
-ngrok
-
-
-Doesn't currently meet:
-Dynamic Client Registration
-OP-Registration-Sector-Bad
-OP-Registration-logo_uri !
-OP-Registration-policy_uri !
-OP-Registration-tos_uri !
-
-ID Token
-OP-IDToken-ES256
-OP-IDToken-RS256
-
-
-Userinfo Endpoint
-OP-UserInfo-Enc
-OP-UserInfo-RS256
-OP-UserInfo-SigEnc
-
-claims Request Parameter
-OP-claims-sub
-
-display Request Parameter
-OP-display-popup
-
-request Request Parameter
-OP-request-Sig
-OP-request-Support
-OP-request-Unsigned
-
-request_uri Request Parameter
-OP-request_uri-Enc
-OP-request_uri-SigEnc
-
-Misc Request Parameters
-OP-Req-acr_values
-OP-Req-max_age=1
-OP-Req-max_age=10000
-
-Key Rotation
-OP-Rotation-OP-Enc
-OP-Rotation-OP-Sig
-OP-Rotation-RP-Enc
-OP-Rotation-RP-Sig
-
-51 / 74 = 
+### package.json
+```json
+{
+  "name": "openidtest",
+  "version": "1.0.0",
+  "description": "",
+  "main": "app.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "express": "^4.16.4",
+    "express-session": "^1.15.6",
+    "passport": "^0.4.0",
+    "passport-openid-connect": "^0.1.0"
+  }
+}
+```

@@ -73,18 +73,11 @@ async def create_authorize_response_params(request: sanic.request.Request, param
 
                 # Check if response_type must include id_token in the response.
                 if params['response_type'] in ('id_token', 'id_token token', 'code id_token', 'code id_token token'):
-                    # TODO =========================== replace with idp sign
-                    if params['client'].jwt_algo == 'RS256':
-                        raise NotImplementedError()  # TODO
-                    elif params['client'].jwt_algo == 'HS256' or params['client'].jwt_algo is None:
 
-                        query_fragment['id_token'] = jwt.encode(
-                            payload=id_token_dic,
-                            key=params['client'].secret,
-                            algorithm='HS256'
-                        ).decode()
-                    else:
-                        raise Exception('Unsupported key algorithm.')
+                    query_fragment['id_token'] = await params['client'].sign(
+                        id_token_dic,
+                        jwk_set=request.app.config['oicp_provider'].jwk_set
+                    )
             else:
                 id_token_dic = {}
 
@@ -105,6 +98,9 @@ async def create_authorize_response_params(request: sanic.request.Request, param
     except Exception as err:
         logger.exception('Failed whilst creating authorize response', exc_info=err)
         raise AuthorizeError(params['redirect_uri'], 'server_error', params['grant_type'])
+
+    query_params = {key: value for key, value in query_params.items() if value}
+    query_fragment = {key: value for key, value in query_fragment.items() if value}
 
     return query_params, query_fragment
 

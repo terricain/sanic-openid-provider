@@ -60,7 +60,10 @@ async def create_refresh_response_dic(request: sanic.request.Request, params: Di
     await request.app.config['oicp_token'].delete_token_by_access_token(params['token_obj']['access_token'])
 
     # TODO make function
-    id_token = await client.sign(id_token_dic)
+    id_token = await client.sign(
+        id_token_dic,
+        jwk_set=request.app.config['oicp_provider'].jwk_set
+    )
 
     dic = {
         'access_token': token['access_token'],
@@ -107,7 +110,10 @@ async def create_code_response_dic(request: sanic.request.Request, params: Dict[
     await request.app.config['oicp_token'].save_token(token)
     await request.app.config['oicp_code'].mark_used_by_id(params['code'])
 
-    id_token = await client.sign(id_token)
+    id_token = await client.sign(
+        id_token,
+        jwk_set=request.app.config['oicp_provider'].jwk_set
+    )
 
     dic = {
         'access_token': token['access_token'],

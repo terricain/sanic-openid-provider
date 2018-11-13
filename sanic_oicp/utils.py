@@ -1,7 +1,11 @@
 from sanic.request import Request
 from sanic.response import HTTPResponse
 from urllib.parse import urlsplit, parse_qs, urlunsplit, urlencode
-from typing import Any
+from typing import Any, TYPE_CHECKING
+
+
+if TYPE_CHECKING:
+    from sanic_oicp.provider import Provider
 
 
 def get_scheme(request: Request) -> str:
@@ -11,6 +15,10 @@ def get_scheme(request: Request) -> str:
         scheme = request.scheme
 
     return scheme
+
+
+def get_provider(request: Request) -> Provider:
+    return request.app.config['oicp_provider']
 
 
 def redirect(url: str) -> HTTPResponse:

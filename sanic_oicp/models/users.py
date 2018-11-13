@@ -2,7 +2,7 @@ import itertools
 import sanic.request
 import datetime
 import logging
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Union, KeysView
 
 
 TEST_USER = {
@@ -139,7 +139,7 @@ class UserManager(object):
             SCOPES[scope] = claims
             logging.info('Added scope {0}: {1}'.format(scope, claims))
 
-    async def get_claims_for_user_by_scope(self, username: str, scopes: List[str], specific_claims: List[str]) -> Dict[str, Any]:
+    async def get_claims_for_user_by_scope(self, username: str, scopes: List[str], specific_claims: Union[List[str], KeysView]) -> Dict[str, Any]:
         user_data = await self.get_user_by_username(username)
 
         return self.get_claims_for_userdata_by_scope(user_data, scopes, specific_claims)

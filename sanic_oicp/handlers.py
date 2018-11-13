@@ -5,9 +5,9 @@ import logging
 import sanic.request
 import sanic.response
 
-from sanic_oicp.utils import get_scheme
+from sanic_oicp.utils import get_scheme, get_provider
 from sanic_oicp.validation import *
-from sanic_oicp.clients import Client
+from sanic_oicp.models.clients import Client
 
 
 logger = logging.getLogger('oicp')
@@ -37,7 +37,7 @@ async def well_known_config_handler(request: sanic.request.Request) -> sanic.res
             'client_secret_basic',
             'private_key_jwt',
             'client_secret_jwt'
-        ],  # Or client_secret_jwt
+        ],
 
         'claims_supported': ['name', 'family_name', 'given_name', 'middle_name', 'nickname', 'preferred_username', 'profile', 'picture', 'website', 'gender', 'birthdate', 'zoneinfo', 'locale', 'updated_at', 'email', 'email_verified', 'address', 'phone_number', 'phone_number_verified'],
         'grant_types_supported': ['authorization_code', 'implicit', 'refresh_token', 'password', 'client_credentials']
@@ -46,57 +46,44 @@ async def well_known_config_handler(request: sanic.request.Request) -> sanic.res
 
 
 async def well_known_finger_handler(request: sanic.request.Request) -> sanic.response.BaseHTTPResponse:
+    provider = get_provider(request)
     scheme = get_scheme(request)
 
     resource = request.args.get('resource')
     rel = request.args.get('rel')
+    finger_url = request.app.url_for('well_known_finger_handler', _scheme=scheme, _external=True, _server=request.host)
+    issuer = '{0}://{1}'.format(scheme, request.host)
 
     logger.info('finger for resource: {0} rel: {1}'.format(resource, rel))
 
-    finger_url = request.app.url_for('well_known_finger_handler', _scheme=scheme, _external=True, _server=request.host)
-
-    if resource == finger_url and rel == 'http://openid.net/specs/connect/1.0/issuer':
-        return sanic.response.json({
-            "subject": resource,
-            "links": [
-                {
-                    "rel": rel,
-                    "href": '{0}://{1}'.format(scheme, request.host)
-                }
-            ]
-        })
-    elif resource.startswith('acct:') and rel == 'http://openid.net/specs/connect/1.0/issuer':
-        return sanic.response.json({
-            "subject": resource,
-            "links": [
-                {
-                    "rel": rel,
-                    "href": '{0}://{1}'.format(scheme, request.host)
-                }
-            ]
-        })
+    try:
+        resp = provider.handle_finger(resource, rel, issuer, finger_url)
+        return sanic.response.json(resp, content_type='application/jrd+json', headers={'Access-Control-Allow-Origin': '*'})
+    except Exception as err:
+        logger.exception('Caught error whilst handling finger url', exc_info=err)
 
     return sanic.response.HTTPResponse(status=500)
 
 
 async def jwk_handler(request: sanic.request.Request) -> sanic.response.BaseHTTPResponse:
-    # TODO return own jwks
-
+    provider = get_provider(request)
     keys = []
 
-    # request.app.config['oicp_provider'].jwk_set
-    for key in request.app.config['oicp_provider'].jwk_set:
+    # TODO look into JWK repository
+    for key in provider.jwk_set:
         keys.append(key._public_params())  # so we dont get json strings
 
     return sanic.response.json({'keys': keys})
 
 
 async def userinfo_handler(request: sanic.request.Request) -> sanic.response.BaseHTTPResponse:
+    provider = get_provider(request)
+
     try:
         params = await validate_userinfo_params(request)
         token = params['token']
 
-        client = await request.app.config['oicp_client'].get_client_by_id(token['client'])
+        client = await provider.clients.get_client_by_id(token['client'])
 
         if token.get('specific_claims', {}) is None:
             specific_claims = {}
@@ -104,7 +91,7 @@ async def userinfo_handler(request: sanic.request.Request) -> sanic.response.Bas
             specific_claims = token['specific_claims']
 
         specific_claims = specific_claims.get('userinfo', {}).keys()
-        claims = await request.app.config['oicp_user'].get_claims_for_user_by_scope(token['user'], token['scope'], specific_claims)
+        claims = await provider.users.get_claims_for_user_by_scope(token['user'], token['scope'], specific_claims)
 
         result = {
             'sub': token['user']
@@ -112,31 +99,38 @@ async def userinfo_handler(request: sanic.request.Request) -> sanic.response.Bas
         result.update(claims)
 
         if client.userinfo_signed_response_alg:
+            # Sign response
             result = await client.jws_sign(result, algo=client.userinfo_signed_response_alg, jwk_set=request.app.config['oicp_provider'].jwk_set)
 
         if client.userinfo_encrypted_response_alg:
+            # Encrypt response
             result = await client.jws_encrypt(result,
                                               alg=client.userinfo_encrypted_response_alg,
                                               enc=client.userinfo_encrypted_response_enc,
                                               jwk_set=None)
 
         if isinstance(result, str):
-            return sanic.response.HTTPResponse(body=result, headers={'Cache-Control': 'no-store', 'Pragma': 'no-cache', 'Content-Type': 'application/jwt'})
+            # If we no longer have plain json, its most likely a JWT of sorts
+            return sanic.response.HTTPResponse(body=result, headers={'Cache-Control': 'no-store',
+                                                                     'Pragma': 'no-cache',
+                                                                     'Content-Type': 'application/jwt'})
         else:
-            return sanic.response.json(result, headers={'Cache-Control': 'no-store', 'Pragma': 'no-cache'})
+            return sanic.response.json(result, headers={'Cache-Control': 'no-store',
+                                                        'Pragma': 'no-cache'})
 
     except TokenError as error:
         return sanic.response.json(error.create_dict(), status=400)
 
 
 async def client_register_handler(request: sanic.request.Request) -> sanic.response.BaseHTTPResponse:
+    provider = get_provider(request)
     scheme = get_scheme(request)
 
     if 'client_id' in request.args:
         # Client Read, check auth header
         try:
             token = request.headers['Authorization'].split('Bearer ')[-1]
-            client = await request.app.config['oicp_client'].get_client_by_access_token(token)
+            client = await provider.clients.get_client_by_access_token(token)
         except Exception as err:
             return sanic.response.text(body='', status=403, headers={'WWW-Authenticate': 'Bearer error="invalid_token"'})
 
@@ -221,7 +215,7 @@ async def client_register_handler(request: sanic.request.Request) -> sanic.respo
                 result = {'error': 'invalid_client_metadata', 'error_description': 'Failed to validate sector identifier uri, {0}'.format(err)}
                 return sanic.response.json(result, status=400)
 
-        success, data = await request.app.config['oicp_client'].add_client(
+        success, data = await provider.clients.add_client(
             id_=client_id,
             name=client_name,
             type_=subject_type,
@@ -281,16 +275,6 @@ async def client_register_handler(request: sanic.request.Request) -> sanic.respo
             }
             status = 500
 
-    return sanic.response.json(result, headers={'Cache-Control': 'no-store', 'Pragma': 'no-cache'}, status=status)
-
-
-
-
-
-
-
-
-
-
-
-
+    return sanic.response.json(result, headers={'Cache-Control': 'no-store',
+                                                'Pragma': 'no-cache'},
+                               status=status)

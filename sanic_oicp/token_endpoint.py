@@ -9,13 +9,14 @@ import sanic.request
 import sanic.response
 from sanic_oicp.exceptions import TokenError, UserAuthError
 
-from sanic_oicp.utils import get_scheme
+from sanic_oicp.utils import get_scheme, get_provider
 
 
 logger = logging.getLogger('oicp')
 
 
 async def create_refresh_response_dic(request: sanic.request.Request, params: Dict[str, Any]) -> Dict[str, Any]:
+    provider = get_provider(request)
     # See https://tools.ietf.org/html/rfc6749#section-6
 
     scope_param = params['scope']
@@ -24,15 +25,15 @@ async def create_refresh_response_dic(request: sanic.request.Request, params: Di
     if unauthorized_scopes:
         raise TokenError('invalid_scope')
 
-    user = await request.app.config['oicp_user'].get_user_by_username(params['token_obj']['user'])
+    user = await provider.users.get_user_by_username(params['token_obj']['user'])
     client = params['client']
 
-    token = request.app.config['oicp_token'].create_token(
+    token = provider.tokens.create_token(
         user=user,
         client=client,
         scope=scope,
         specific_claims=params['specific_claims'],
-        expire_delta=request.app.config['oicp_token_expire']
+        expire_delta=provider.token_expire_time
     )
 
     scheme = get_scheme(request)
@@ -40,13 +41,13 @@ async def create_refresh_response_dic(request: sanic.request.Request, params: Di
 
     # If the Token has an id_token it's an Authentication request.
     if params['token_obj']['id_token']:
-        id_token_dic = request.app.config['oicp_token'].create_id_token(
+        id_token_dic = provider.tokens.create_id_token(
             app=request.app,
             user=user,
             issuer=issuer,
             client=client,
             nonce=None,
-            expire_delta=request.app.config['oicp_token_expire'],
+            expire_delta=provider.token_expire_time,
             at_hash=token['at_hash'],
             scope=token['scope'],
             specific_claims=token['specific_claims']
@@ -55,21 +56,20 @@ async def create_refresh_response_dic(request: sanic.request.Request, params: Di
         id_token_dic = {}
 
     token['id_token'] = id_token_dic
-    await request.app.config['oicp_token'].save_token(token)
-
-    await request.app.config['oicp_token'].delete_token_by_access_token(params['token_obj']['access_token'])
+    await provider.tokens.save_token(token)
+    await provider.tokens.delete_token_by_access_token(params['token_obj']['access_token'])
 
     # TODO make function
     id_token = await client.sign(
         id_token_dic,
-        jwk_set=request.app.config['oicp_provider'].jwk_set
+        jwk_set=provider.jwk_set
     )
 
     dic = {
         'access_token': token['access_token'],
         'refresh_token': token['refresh_token'],
         'token_type': 'bearer',
-        'expires_in': request.app.config['oicp_token_expire'],
+        'expires_in': provider.token_expire_time,
         'id_token': id_token,
     }
 
@@ -77,16 +77,17 @@ async def create_refresh_response_dic(request: sanic.request.Request, params: Di
 
 
 async def create_code_response_dic(request: sanic.request.Request, params: Dict[str, Any]) -> Dict[str, Any]:
+    provider = get_provider(request)
     # See https://tools.ietf.org/html/rfc6749#section-4.1
 
-    user = await request.app.config['oicp_user'].get_user_by_username(params['code_obj']['user'])
+    user = await provider.users.get_user_by_username(params['code_obj']['user'])
     client = params['client']
 
-    token = request.app.config['oicp_token'].create_token(
+    token = provider.tokens.create_token(
         user=user,
         client=client,
         scope=params['code_obj']['scope'],
-        expire_delta=request.app.config['oicp_token_expire'],
+        expire_delta=provider.token_expire_time,
         specific_claims=params['code_obj']['specific_claims'],
         code=params['code']
     )
@@ -94,12 +95,12 @@ async def create_code_response_dic(request: sanic.request.Request, params: Dict[
     scheme = get_scheme(request)
     issuer = '{0}://{1}'.format(scheme, request.host)
 
-    id_token = request.app.config['oicp_token'].create_id_token(
+    id_token = provider.tokens.create_id_token(
         app=request.app,
         user=user,
         client=client,
         issuer=issuer,
-        expire_delta=request.app.config['oicp_token_expire'],
+        expire_delta=provider.token_expire_time,
         nonce=params['code_obj']['nonce'],
         at_hash=token['at_hash'],
         scope=token['scope'],
@@ -107,19 +108,19 @@ async def create_code_response_dic(request: sanic.request.Request, params: Dict[
     )
 
     token['id_token'] = id_token
-    await request.app.config['oicp_token'].save_token(token)
-    await request.app.config['oicp_code'].mark_used_by_id(params['code'])
+    await provider.tokens.save_token(token)
+    await provider.codes.mark_used_by_id(params['code'])
 
     id_token = await client.sign(
         id_token,
-        jwk_set=request.app.config['oicp_provider'].jwk_set
+        jwk_set=provider.jwk_set
     )
 
     dic = {
         'access_token': token['access_token'],
         'refresh_token': token['refresh_token'],
         'token_type': 'bearer',
-        'expires_in': request.app.config['oicp_token_expire'],
+        'expires_in': provider.token_expire_time,
         'id_token': id_token,
     }
 
@@ -127,6 +128,8 @@ async def create_code_response_dic(request: sanic.request.Request, params: Dict[
 
 
 async def validate_token_params(request: sanic.request.Request) -> Dict[str, Any]:
+    provider = get_provider(request)
+
     if request.method == 'POST':
         req_dict = request.form
     else:
@@ -137,17 +140,16 @@ async def validate_token_params(request: sanic.request.Request) -> Dict[str, Any
 
     if client_assertion_type and client_assertion_type == 'urn:ietf:params:oauth:client-assertion-type:jwt-bearer':
         header = jwt.get_unverified_header(client_assertion)
+        audience = '{0}://{1}{2}'.format(get_scheme(request), request.host, request.path)
 
-        # TODO maintain centeral collection of client jwts
-
+        # TODO maintain central collection of client jwts
         if 'kid' in header:
             # Asymetric signing
-            client = await request.app.config['oicp_client'].get_client_by_key_id(header.get('kid'))
+            client = await provider.clients.get_client_by_key_id(header.get('kid'))
             jwt_key = client.jwk.get_key(header.get('kid'))
 
             try:
-                audience = '{0}://{1}{2}'.format(get_scheme(request), request.host, request.path)
-                jwt_token = jwt.decode(client_assertion, jwt_key.export_to_pem(), algorithms=[header['alg']], audience=audience)
+                jwt.decode(client_assertion, jwt_key.export_to_pem(), algorithms=[header['alg']], audience=audience)
                 # By it not erroring, its successfully verified
             except Exception as err:
                 logger.exception('Invalid key id', exc_info=err)
@@ -156,16 +158,14 @@ async def validate_token_params(request: sanic.request.Request) -> Dict[str, Any
         else:
             # HMAC with client secret
             temp_jwt_token = jwt.decode(client_assertion, verify=False)
-            client = await request.app.config['oicp_client'].get_client_by_id(temp_jwt_token['sub'])
+            client = await provider.clients.get_client_by_id(temp_jwt_token['sub'])
 
             try:
-                audience = '{0}://{1}{2}'.format(get_scheme(request), request.host, request.path)
                 jwt.decode(client_assertion, client.secret, algorithms=[header['alg']], audience=audience)
                 # By it not erroring, its successfully verified
             except Exception as err:
                 logger.exception('Invalid key id', exc_info=err)
                 raise TokenError('invalid_client')
-
 
     else:
         client_id = req_dict.get('client_id')
@@ -177,7 +177,7 @@ async def validate_token_params(request: sanic.request.Request) -> Dict[str, Any
             else:
                 raise NotImplementedError(hdr)
 
-        client = await request.app.config['oicp_client'].get_client_by_id(client_id)
+        client = await provider.clients.get_client_by_id(client_id)
         if not client_id:
             raise TokenError('invalid_client')
 
@@ -188,9 +188,8 @@ async def validate_token_params(request: sanic.request.Request) -> Dict[str, Any
     if specific_claims:
         try:
             specific_claims = json.loads(specific_claims)
-        except:
-            # TODO log
-            pass
+        except Exception as err:
+            logger.exception('Failed to decode specific claims', exc_info=err)
 
     result = {
         'client': client,
@@ -203,7 +202,7 @@ async def validate_token_params(request: sanic.request.Request) -> Dict[str, Any
         'code_verifier': req_dict.get('code_verifier'),
         'username': req_dict.get('username', ''),
         'password': req_dict.get('password', ''),
-        'specific_claims':specific_claims
+        'specific_claims': specific_claims
 
     }
 
@@ -214,13 +213,13 @@ async def validate_token_params(request: sanic.request.Request) -> Dict[str, Any
         if result['redirect_uri'] not in client.callback_urls:
             raise TokenError('invalid_client')
 
-        code = await request.app.config['oicp_code'].get_by_id(result['code'])
+        code = await provider.codes.get_by_id(result['code'])
 
         if not code:
             raise TokenError('invalid_grant')
 
         if code['used']:
-            await request.app.config['oicp_token'].delete_token_by_code(result['code'])
+            await provider.codes.delete_token_by_code(result['code'])
             raise TokenError('invalid_grant')
 
         if code['client'] != client.id:
@@ -240,7 +239,7 @@ async def validate_token_params(request: sanic.request.Request) -> Dict[str, Any
         result['code_obj'] = code
 
     elif result['grant_type'] == 'password':
-        if not request.app.config['oicp_grant_type_password']:
+        if not request.app.config['oicp_grant_type_password']:  # TODO
             raise TokenError('unsupported_grant_type')
 
         # TODO authenticate username/password
@@ -261,7 +260,7 @@ async def validate_token_params(request: sanic.request.Request) -> Dict[str, Any
             logger.warning('No refresh token')
             raise TokenError('invalid_grant')
 
-        token = await request.app.config['oicp_token'].get_token_by_refresh_token(result['refresh_token'])
+        token = await provider.tokens.get_token_by_refresh_token(result['refresh_token'])
         if not token:
             raise TokenError('invalid_grant')
 
@@ -278,10 +277,10 @@ async def token_handler(request: sanic.request.Request) -> sanic.response.BaseHT
             payload = await create_code_response_dic(request, params)
         elif params['grant_type'] == 'refresh_token':
             payload = await create_refresh_response_dic(request, params)
-        elif params['grant_type'] == 'password':
-            payload = create_access_token_response_dic(request, params)
-        elif params['grant_type'] == 'client_credentials':
-            payload = create_client_credentials_response_dic(request, params)
+        # elif params['grant_type'] == 'password':
+        #     payload = create_access_token_response_dic(request, params)
+        # elif params['grant_type'] == 'client_credentials':
+        #     payload = create_client_credentials_response_dic(request, params)
         else:
             raise TokenError('invalid_grant')
 
@@ -291,7 +290,3 @@ async def token_handler(request: sanic.request.Request) -> sanic.response.BaseHT
         return sanic.response.json(error.create_dict(), status=400)
     except UserAuthError as error:
         return sanic.response.json(error.create_dict(), status=400)
-
-# TODO OP-ClientAuth-PrivateJWT OP-ClientAuth-SecretJWT
-#
-

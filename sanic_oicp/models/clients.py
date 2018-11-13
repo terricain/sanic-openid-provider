@@ -204,18 +204,30 @@ class ClientStore(object):
         logger.info('Validated client {0} - {1}'.format(id_, name))
         return True, ''
 
-    async def add_client(self, id_: str,
+    async def add_client(self,
+                         id_: str,
                          name: str,
-                         secret: str,
                          type_: str,
-                         require_consent: bool,
-                         reuse_consent: bool,
-                         scopes: Tuple[str, ...],
+                         secret: str,
                          callback_urls: Tuple[str, ...],
-                         response_types: Tuple[str, ...],
-                         jwt_algo: str,
-                         prompts: Tuple[str, ...],
-                         application_type: str=None) -> Tuple[bool, Union[str, Client]]:
+                         require_consent: bool=False,
+                         reuse_consent: bool=False,
+                         scopes: Tuple[str, ...]=('profile', 'email', 'phone'),
+                         response_types: Tuple[str, ...]=('code',),
+                         jwt_algo: str=None,
+                         prompts: Tuple[str, ...]=None,
+                         application_type: str=None,
+                         grant_types: Tuple[str, ...] = None,
+                         contacts: Tuple[str, ...] = None,
+                         expires_at: Optional[int]= None,
+                         jwks_url: Tuple[str, ...]=None,
+                         post_logout_redirect_urls: Tuple[str, ...]=None,
+                         request_urls: Tuple[str, ...] = None,
+                         sector_identifier_uri: str=None,
+                         userinfo_signed_response_alg: str=None,
+                         userinfo_encrypted_response_alg: str = None,
+                         userinfo_encrypted_response_enc: str = None
+                         ) -> Tuple[bool, Union[str, Client]]:
         raise NotImplementedError()
 
     async def delete_client_by_id(self, client_id: str) -> bool:

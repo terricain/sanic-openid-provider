@@ -1,30 +1,35 @@
 import json
 import logging
-from typing import Dict, Any, Tuple
+from typing import Dict, Any, Tuple, TYPE_CHECKING
 from urllib.parse import urlsplit, parse_qs, urlunsplit, urlencode, unquote
 
-import jwt
 import sanic.request
 import sanic.response
 
 from sanic_oicp.exceptions import *
-from sanic_oicp.utils import strip_prompt_login, redirect, get_scheme
+from sanic_oicp.utils import strip_prompt_login, redirect, get_scheme, get_provider
+
+if TYPE_CHECKING:
+    from sanic_oicp.provider import Provider
 
 
 logger = logging.getLogger('oicp')
 
 
 async def create_authorize_response_params(request: sanic.request.Request, params: Dict[str, Any], user: Dict[str, Any]) -> Tuple[dict, dict]:
+    provider = get_provider(request)
+    client = params['client']
+
     uri = urlsplit(params['redirect_uri'])
     query_params = parse_qs(uri.query)
     query_fragment = {}
 
-    max_age = params['max_age'] if params['max_age'] else request.app.config['oicp_code_expire']
+    max_age = params['max_age'] if params['max_age'] else provider.code_expire_time
 
     try:
         if params['grant_type'] in ('authorization_code', 'hybrid'):
-            code = await request.app.config['oicp_code'].create_code(
-                client=params['client'],
+            code = await provider.codes.create_code(
+                client=client,
                 user=user,
                 scopes=params['scopes'],
                 code_expire=int(max_age),
@@ -38,9 +43,9 @@ async def create_authorize_response_params(request: sanic.request.Request, param
             query_params['code'] = code['code']
             query_params['state'] = params['state']
         elif params['grant_type'] in ['implicit', 'hybrid']:
-            token = request.app.config['oicp_token'].create_token(
+            token = provider.tokens.create_token(
                 user=user,
-                client=params['client'],
+                client=client,
                 scope=params['scopes'],
                 expire_delta=request.app.config['oicp_token_expire'],
                 specific_claims=params['specific_claims']
@@ -58,9 +63,9 @@ async def create_authorize_response_params(request: sanic.request.Request, param
                 kwargs = {
                     'app': request.app,
                     'user': user,
-                    'client': params['client'],
+                    'client': client,
                     'issuer': issuer,
-                    'expire_delta': request.app.config['oicp_token_expire'],
+                    'expire_delta': provider.token_expire_time,
                     'nonce': params['nonce'],
                     'at_hash': token['at_hash'],
                     'scope': params['scopes'],
@@ -69,30 +74,25 @@ async def create_authorize_response_params(request: sanic.request.Request, param
                 # Include at_hash when access_token is being returned.
                 if 'access_token' in query_fragment:
                     kwargs['at_hash'] = token['at_hash']
-                id_token_dic = request.app.config['oicp_token'].create_id_token(**kwargs)
+                id_token_dic = provider.tokens.create_id_token(**kwargs)
 
                 # Check if response_type must include id_token in the response.
                 if params['response_type'] in ('id_token', 'id_token token', 'code id_token', 'code id_token token'):
 
-                    query_fragment['id_token'] = await params['client'].sign(
-                        id_token_dic,
-                        jwk_set=request.app.config['oicp_provider'].jwk_set
-                    )
+                    query_fragment['id_token'] = await client.sign(id_token_dic, jwk_set=provider.jwk_set)
             else:
                 id_token_dic = {}
 
             # Store the token.
             token['id_token'] = id_token_dic
-            await request.app.config['oicp_token'].save_token(token)
+            await provider.tokens.save_token(token)
 
             # Code parameter must be present if it's Hybrid Flow.
             if params['grant_type'] == 'hybrid':
                 query_fragment['code'] = code['code']
 
             query_fragment['token_type'] = 'bearer'
-
-            query_fragment['expires_in'] = request.app.config['oicp_token_expire']
-
+            query_fragment['expires_in'] = provider.token_expire_time
             query_fragment['state'] = params['state']
 
     except Exception as err:
@@ -115,7 +115,7 @@ def create_authorize_response_uri(redirect_uri: str, query_params: Dict[str, Any
     return urlunsplit(uri)
 
 
-async def validate_authorize_params(request: sanic.request.Request) -> Dict[str, Any]:
+async def validate_authorize_params(request: sanic.request.Request, provider: Provider) -> Dict[str, Any]:
     if request.method == 'POST':
         req_dict = request.form
     else:
@@ -127,7 +127,7 @@ async def validate_authorize_params(request: sanic.request.Request) -> Dict[str,
         raise ClientIdError()
 
     client_id = req_dict.get('client_id')
-    client = await request.app.config['oicp_client'].get_client_by_id(client_id)
+    client = await provider.clients.get_client_by_id(client_id)
 
     # Check client exists
     if not client:
@@ -186,9 +186,8 @@ async def validate_authorize_params(request: sanic.request.Request) -> Dict[str,
     if specific_claims:
         try:
             specific_claims = json.loads(specific_claims)
-        except:
-            # TODO log
-            pass
+        except Exception as err:
+            logger.exception('Failed to load specific claims', exc_info=err)
 
     # Get prompts
     prompts = set(unquote(req_dict.get('prompt', '')).split())
@@ -203,7 +202,7 @@ async def validate_authorize_params(request: sanic.request.Request) -> Dict[str,
         'code_challenge': code_challenge,
         'code_challenge_method': code_challenge_method,
         'nonce': nonce,
-        'prompt': client.prompts & prompts,
+        'prompt': client.prompts & prompts,  # Reduce prompts to only which is allowed by the client
         'response_mode': req_dict.get('response_mode', ''),
         'max_age': req_dict.get('max_age'),
         'specific_claims': specific_claims
@@ -211,13 +210,15 @@ async def validate_authorize_params(request: sanic.request.Request) -> Dict[str,
 
 
 async def authorize_handler(request: sanic.request.Request) -> sanic.response.BaseHTTPResponse:
-    # validate params
+    provider = get_provider(request)
+
+    # TODO split out based on response_type
+
     try:
-        params = await validate_authorize_params(request)
+        params = await validate_authorize_params(request, provider)
 
-        if await request.app.config['oicp_user'].is_authenticated(request):
-
-            user = await request.app.config['oicp_user'].get_user(request)
+        if await provider.users.is_authenticated(request):
+            user = await provider.users.get_user(request)
 
             if 'login' in params['prompt']:
                 if 'none' in params['prompt']:
@@ -228,7 +229,7 @@ async def authorize_handler(request: sanic.request.Request) -> sanic.response.Ba
                     # If login is in prompt arg
                     request['session'].clear()
                     next_page = strip_prompt_login(request.url)
-                    return redirect(request.app.url_for(request.app.config['oicp_login_funcname'], next=next_page))
+                    return redirect(request.app.url_for(provider.login_function_name, next=next_page))
 
             if 'select_account' in params['prompt']:
                 if 'none' in params['prompt']:
@@ -236,7 +237,7 @@ async def authorize_handler(request: sanic.request.Request) -> sanic.response.Ba
                     raise AuthorizeError(params['redirect_uri'], 'account_selection_required', params['grant_type'])
                 else:
                     request['session'].clear()
-                    return redirect(request.app.url_for(request.app.config['oicp_login_funcname'], next=request.url))
+                    return redirect(request.app.url_for(provider.login_function_name, next=request.url))
 
             if {'none', 'consent'} <= params['prompt']:  # Tests if both none and consent in prompt
                 logger.warning('consent prompt along with none prompt')
@@ -339,10 +340,10 @@ async def authorize_handler(request: sanic.request.Request) -> sanic.response.Ba
             if 'login' in params['prompt']:
                 # Can prompt, redirect them to login page
                 next_page = strip_prompt_login(request.url)
-                return redirect(request.app.url_for(request.app.config['oicp_login_funcname'], next=next_page))
+                return redirect(request.app.url_for(provider.login_function_name, next=next_page))
 
             # Nothing in prompt, so default to redirecting to login page
-            return redirect(request.app.url_for(request.app.config['oicp_login_funcname'], next=request.url))
+            return redirect(request.app.url_for(provider.login_function_name, next=request.url))
 
     except (ClientIdError, RedirectUriError) as err:
 

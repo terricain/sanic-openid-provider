@@ -17,7 +17,7 @@ def get_scheme(request: Request) -> str:
     return scheme
 
 
-def get_provider(request: Request) -> Provider:
+def get_provider(request: Request) -> 'Provider':
     return request.app.config['oicp_provider']
 
 

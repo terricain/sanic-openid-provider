@@ -26,7 +26,7 @@ logger = logging.getLogger('oicp')
 def setup(app: sanic.Sanic,
           wellknown_config_path: str='/.well-known/openid-configuration',
           wellknown_finger_path: str='/.well-known/webfinger',
-          jwk_path: str='/sso/oidc/jwk',  # TODO oidc -> oicp
+          jwk_path: str='/sso/oidc/jwk',
           userinfo_path: str='/sso/oidc/userinfo',
           token_path: str='/sso/oidc/token',
           authorize_path: str='/sso/oidc/authorize',
@@ -41,7 +41,7 @@ def setup(app: sanic.Sanic,
           client_manager_class: Type[ClientStore]=InMemoryClientStore,
           code_manager_class: Type[CodeStore]=InMemoryCodeStore,
           token_manager_class: Type[TokenStore]=InMemoryTokenStore
-          ):
+          ) -> Provider:
 
     app.add_route(well_known_config_handler, wellknown_config_path, frozenset({'GET'}))
     app.add_route(well_known_finger_handler, wellknown_finger_path, frozenset({'GET'}))
@@ -59,9 +59,13 @@ def setup(app: sanic.Sanic,
 
         login_function_name=login_funcname,
         token_expire_time=token_expire,
-        code_expire_time=code_expire
+        code_expire_time=code_expire,
+
+        allow_grant_type_password=grant_type_password
     )
     app.config['oicp_provider'].load_keys(private_keys)
+
+    return app.config['oicp_provider']
 
     # app.config['oicp_user'] = user_manager_class()
     # app.config['oicp_code'] = InMemoryCodeStore()

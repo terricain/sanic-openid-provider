@@ -100,7 +100,7 @@ async def userinfo_handler(request: sanic.request.Request) -> sanic.response.Bas
 
         if client.userinfo_signed_response_alg:
             # Sign response
-            result = await client.jws_sign(result, algo=client.userinfo_signed_response_alg, jwk_set=request.app.config['oicp_provider'].jwk_set)
+            result = await client.jws_sign(result, algo=client.userinfo_signed_response_alg, jwk_set=provider.jwk_set)
 
         if client.userinfo_encrypted_response_alg:
             # Encrypt response

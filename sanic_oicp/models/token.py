@@ -9,16 +9,21 @@ from typing import Dict, Tuple, Any, Optional, List, Union, TYPE_CHECKING
 from sanic_oicp.utils import masked
 
 if TYPE_CHECKING:
-    from sanic import Sanic
     from sanic_oicp.models.clients import Client
 
 logger = logging.getLogger('oicp')
 
 
 class TokenStore(object):
+    def __init__(self, provider):
+        self._provider = provider
+
+    async def setup(self):
+        pass
+
     def create_token(self,
                      user: Dict[str, Any],
-                     client: Client,
+                     client: 'Client',
                      scope: Tuple[str, ...],
                      expire_delta: int,
                      specific_claims: Dict[str, Any]=None,
@@ -43,9 +48,8 @@ class TokenStore(object):
         }
 
     def create_id_token(self,
-                        app: Sanic,
                         user: Dict[str, Any],
-                        client: Client,
+                        client: 'Client',
                         expire_delta: int,
                         issuer: str,
                         nonce: Optional[str]='',
@@ -83,7 +87,7 @@ class TokenStore(object):
             dic['at_hash'] = at_hash
 
         specific_claims = specific_claims.get('id_token', {}).keys()
-        claims = app.config['oicp_user'].get_claims_for_userdata_by_scope(user, scope, specific_claims)
+        claims = self._provider.users.get_claims_for_userdata_by_scope(user, scope, specific_claims)
         dic.update(claims)
 
         return dic
@@ -105,7 +109,9 @@ class TokenStore(object):
 
 
 class InMemoryTokenStore(TokenStore):
-    def __init__(self):
+    def __init__(self, *args, **kwargs):
+        super(InMemoryTokenStore, self).__init__(*args, **kwargs)
+
         self._store = {}
         self._client_token_store = {}
 

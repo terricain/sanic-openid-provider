@@ -42,7 +42,6 @@ async def create_refresh_response_dic(request: sanic.request.Request, params: Di
     # If the Token has an id_token it's an Authentication request.
     if params['token_obj']['id_token']:
         id_token_dic = provider.tokens.create_id_token(
-            app=request.app,
             user=user,
             issuer=issuer,
             client=client,
@@ -59,11 +58,7 @@ async def create_refresh_response_dic(request: sanic.request.Request, params: Di
     await provider.tokens.save_token(token)
     await provider.tokens.delete_token_by_access_token(params['token_obj']['access_token'])
 
-    # TODO make function
-    id_token = await client.sign(
-        id_token_dic,
-        jwk_set=provider.jwk_set
-    )
+    id_token = await client.sign(id_token_dic, jwk_set=provider.jwk_set)
 
     dic = {
         'access_token': token['access_token'],
@@ -96,7 +91,6 @@ async def create_code_response_dic(request: sanic.request.Request, params: Dict[
     issuer = '{0}://{1}'.format(scheme, request.host)
 
     id_token = provider.tokens.create_id_token(
-        app=request.app,
         user=user,
         client=client,
         issuer=issuer,
@@ -145,7 +139,8 @@ async def validate_token_params(request: sanic.request.Request) -> Dict[str, Any
         # TODO maintain central collection of client jwts
         if 'kid' in header:
             # Asymetric signing
-            client = await provider.clients.get_client_by_key_id(header.get('kid'))
+            temp_jwt_token = jwt.decode(client_assertion, verify=False)
+            client = await provider.clients.get_client_by_id(temp_jwt_token['sub'])
             jwt_key = client.jwk.get_key(header.get('kid'))
 
             try:
@@ -219,7 +214,7 @@ async def validate_token_params(request: sanic.request.Request) -> Dict[str, Any
             raise TokenError('invalid_grant')
 
         if code['used']:
-            await provider.codes.delete_token_by_code(result['code'])
+            await provider.tokens.delete_token_by_code(result['code'])
             raise TokenError('invalid_grant')
 
         if code['client'] != client.id:
@@ -239,7 +234,7 @@ async def validate_token_params(request: sanic.request.Request) -> Dict[str, Any
         result['code_obj'] = code
 
     elif result['grant_type'] == 'password':
-        if not request.app.config['oicp_grant_type_password']:  # TODO
+        if not provider.allow_grant_type_password:
             raise TokenError('unsupported_grant_type')
 
         # TODO authenticate username/password

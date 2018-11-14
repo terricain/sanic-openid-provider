@@ -1,4 +1,3 @@
-import itertools
 import sanic.request
 import datetime
 import logging
@@ -40,6 +39,12 @@ logger = logging.getLogger('oicp')
 
 
 class UserManager(object):
+    def __init__(self, provider):
+        self._provider = provider
+
+    async def setup(self):
+        pass
+
     async def is_authenticated(self, request: sanic.request.Request) -> bool:
         return 'user' in request['session']
 

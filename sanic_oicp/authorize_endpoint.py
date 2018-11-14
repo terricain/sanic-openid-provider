@@ -40,6 +40,7 @@ async def create_authorize_response_params(request: sanic.request.Request, param
             )
 
         if params['grant_type'] == 'authorization_code':
+            # noinspection PyUnboundLocalVariable
             query_params['code'] = code['code']
             query_params['state'] = params['state']
         elif params['grant_type'] in ['implicit', 'hybrid']:
@@ -47,7 +48,7 @@ async def create_authorize_response_params(request: sanic.request.Request, param
                 user=user,
                 client=client,
                 scope=params['scopes'],
-                expire_delta=request.app.config['oicp_token_expire'],
+                expire_delta=provider.token_expire_time,
                 specific_claims=params['specific_claims']
             )
 
@@ -61,7 +62,6 @@ async def create_authorize_response_params(request: sanic.request.Request, param
                 issuer = '{0}://{1}'.format(scheme, request.host)
 
                 kwargs = {
-                    'app': request.app,
                     'user': user,
                     'client': client,
                     'issuer': issuer,
@@ -89,6 +89,7 @@ async def create_authorize_response_params(request: sanic.request.Request, param
 
             # Code parameter must be present if it's Hybrid Flow.
             if params['grant_type'] == 'hybrid':
+                # noinspection PyUnboundLocalVariable
                 query_fragment['code'] = code['code']
 
             query_fragment['token_type'] = 'bearer'
@@ -115,7 +116,7 @@ def create_authorize_response_uri(redirect_uri: str, query_params: Dict[str, Any
     return urlunsplit(uri)
 
 
-async def validate_authorize_params(request: sanic.request.Request, provider: Provider) -> Dict[str, Any]:
+async def validate_authorize_params(request: sanic.request.Request, provider: 'Provider') -> Dict[str, Any]:
     if request.method == 'POST':
         req_dict = request.form
     else:

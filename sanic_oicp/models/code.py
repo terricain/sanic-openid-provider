@@ -13,8 +13,14 @@ logger = logging.getLogger('oicp')
 
 
 class CodeStore(object):
+    def __init__(self, provider):
+        self._provider = provider
+
+    async def setup(self):
+        pass
+
     async def create_code(self,
-                          client: Client,
+                          client: 'Client',
                           user: Dict[str, Any],
                           scopes: Tuple[str, ...],
                           code_expire: int,
@@ -54,8 +60,8 @@ class CodeStore(object):
 
 
 class InMemoryCodeStore(CodeStore):
-    def __init__(self):
-        super(InMemoryCodeStore, self).__init__()
+    def __init__(self, *args, **kwargs):
+        super(InMemoryCodeStore, self).__init__(*args, **kwargs)
 
         self._store: Dict[str, Any] = {}
 

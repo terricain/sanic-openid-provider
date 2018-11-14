@@ -11,7 +11,6 @@ from jinja2 import FileSystemLoader
 
 from sanic_oicp import setup
 
-
 oicp_logger = logging.getLogger('oicp')
 oicp_logger.setLevel(logging.INFO)
 oicp_logger.addHandler(logging.StreamHandler())
@@ -22,10 +21,7 @@ jinja = SanicJinja2(app, loader=FileSystemLoader('./templates'), enable_async=Tr
 
 RESOURCES_DIR = os.path.join(os.path.dirname(__file__), 'resources')
 
-setup(app, private_keys=[
-    os.path.join(RESOURCES_DIR, 'ec.pem'),
-    os.path.join(RESOURCES_DIR, 'rsa.pem')
-])
+oicp_provider = setup(app, private_keys=[os.path.join(RESOURCES_DIR, 'ec.pem'), os.path.join(RESOURCES_DIR, 'rsa.pem')])
 
 #
 # def create_client_credentials_response_dic(request: sanic.request.Request, params: Dict[str, Any]) -> Dict[str, Any]:
@@ -125,7 +121,9 @@ async def login(request: sanic.request.Request) -> sanic.response.BaseHTTPRespon
 
 @app.listener('before_server_start')
 async def startup(app, loop):
-    await app.config['oicp_client'].add_client(
+    await oicp_provider.setup()
+
+    await oicp_provider.clients.add_client(
         id_='kbyuFDidLLm280LIwVFiazOqjO3ty8KH',
         name='TestClient',
         secret='60Op4HFM0I8ajz0WdiStAbziZ-VFQttXuxixHHs2R7r7-CW8GR79l-mmLqMhc-Sa',

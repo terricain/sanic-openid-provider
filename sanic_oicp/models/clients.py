@@ -7,7 +7,7 @@ import jwcrypto.jwk
 import jwcrypto.jwe
 import jwcrypto.common
 import jwcrypto.jws
-import jose.jws
+# import jose.jws
 
 
 logger = logging.getLogger('oicp')
@@ -27,7 +27,7 @@ class Client(object):
                  jwt_algo: str,
                  prompts: Tuple[str, ...],
                  application_type: str=None,
-                 jwks_url: Tuple[str, ...]=None,
+                 jwks_url: str=None,
                  post_logout_redirect_urls: Tuple[str, ...]=None,
                  request_urls: Tuple[str, ...]=None,
                  grant_types: Tuple[str, ...] = None,
@@ -194,6 +194,12 @@ class Client(object):
 
 
 class ClientStore(object):
+    def __init__(self, provider):
+        self._provider = provider
+
+    async def setup(self):
+        pass
+
     async def get_client_by_id(self, client_id: str) -> Union[Client, None]:
         raise NotImplementedError()
 
@@ -238,7 +244,9 @@ class ClientStore(object):
 
 
 class InMemoryClientStore(ClientStore):
-    def __init__(self):
+    def __init__(self, *args, **kwargs):
+        super(InMemoryClientStore, self).__init__(*args, **kwargs)
+
         self._clients: Dict[str, Client] = {}
 
     async def add_client(self,
@@ -314,12 +322,6 @@ class InMemoryClientStore(ClientStore):
     async def get_client_by_access_token(self, access_token: str) -> Union[Client, None]:
         for client in self._clients.values():
             if client.access_token == access_token:
-                return client
-        return None
-
-    async def get_client_by_key_id(self, key_id: str) -> Union[Client, None]:
-        for client in self._clients.values():
-            if client.jwk.get_key(key_id):
                 return client
         return None
 

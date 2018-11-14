@@ -2,10 +2,13 @@ from typing import Dict, Any
 
 from sanic.request import Request
 
+from sanic_oicp.utils import get_provider
 from sanic_oicp.exceptions import *
 
 
 async def validate_userinfo_params(request: Request) -> Dict[str, Any]:
+    provider = get_provider(request)
+
     if request.method == 'POST':
         req_dict = request.form
     else:
@@ -25,7 +28,7 @@ async def validate_userinfo_params(request: Request) -> Dict[str, Any]:
     if not access_token:
         raise TokenError('invalid_grant')
 
-    token = await request.app.config['oicp_token'].get_token_by_access_token(access_token)
+    token = await provider.tokens.get_token_by_access_token(access_token)
     if not token:
         raise TokenError('invalid_grant')
 

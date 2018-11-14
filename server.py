@@ -130,18 +130,18 @@ async def startup(app, loop):
         type_='public',  # public or pairwise
         require_consent=False,
         reuse_consent=False,
-        scopes=['openid', 'profile', 'email', 'phone', 'address'],
-        callback_urls=[
+        scopes=('openid', 'profile', 'email', 'phone', 'address'),
+        callback_urls=(
             'https://openidconnect.net/callback',
             "https://op.certification.openid.net:60407/authz_cb",
             "https://op.certification.openid.net:60407/authz_post",
             'https://testjenkins.ficoccs-prod.net/securityRealm/finishLogin',
             'http://127.0.0.1:3000/cb1',
             'http://127.0.0.1:3000/callback'
-        ],
-        response_types=['code'],
+        ),
+        response_types=('code',),
         jwt_algo='ES256',
-        prompts=['consent', 'login', 'none'],
+        prompts=('consent', 'login', 'none'),
         application_type='web',
     )
 

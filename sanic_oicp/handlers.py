@@ -179,6 +179,9 @@ async def client_register_handler(request: sanic.request.Request) -> sanic.respo
         prompt = request.json.get('prompt', frozenset(['none', 'login', 'consent']))
         sector_identifier_uri = request.json.get('sector_identifier_uri')
         subject_type = request.json.get('subject_type', 'public')
+        logo_uri = request.json.get('logo_uri')
+        policy_uri = request.json.get('policy_uri')
+        tos_uri = request.json.get('tos_uri')
 
         # TODO request_object_signing_alg
         #
@@ -237,6 +240,9 @@ async def client_register_handler(request: sanic.request.Request) -> sanic.respo
             userinfo_signed_response_alg=userinfo_signed_response_alg,
             userinfo_encrypted_response_alg=userinfo_encrypted_response_alg,
             userinfo_encrypted_response_enc=userinfo_encrypted_response_enc,
+            logo_uri=logo_uri,
+            policy_uri=policy_uri,
+            tos_uri=tos_uri,
 
             jwks=jwks
         )
@@ -267,6 +273,12 @@ async def client_register_handler(request: sanic.request.Request) -> sanic.respo
                 result['sector_identifier_uri'] = sector_identifier_uri
             if id_token_signed_response_alg:
                 result['id_token_signed_response_alg'] = id_token_signed_response_alg
+            if logo_uri:
+                result['logo_uri'] = logo_uri
+            if tos_uri:
+                result['tos_uri'] = tos_uri
+            if policy_uri:
+                result['policy_uri'] = policy_uri
 
             status = 201
         else:

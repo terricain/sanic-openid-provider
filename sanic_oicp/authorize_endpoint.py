@@ -24,15 +24,13 @@ async def create_authorize_response_params(request: sanic.request.Request, param
     query_params = parse_qs(uri.query)
     query_fragment = {}
 
-    max_age = params['max_age'] if params['max_age'] else provider.code_expire_time
-
     try:
         if params['grant_type'] in ('authorization_code', 'hybrid'):
             code = await provider.codes.create_code(
                 client=client,
                 user=user,
                 scopes=params['scopes'],
-                code_expire=int(max_age),
+                code_expire=int(provider.code_expire_time),
                 nonce=params['nonce'],
                 code_challenge=params['code_challenge'],
                 code_challenge_method=params['code_challenge_method'],
@@ -43,10 +41,12 @@ async def create_authorize_response_params(request: sanic.request.Request, param
             # noinspection PyUnboundLocalVariable
             query_params['code'] = code['code']
             query_params['state'] = params['state']
+
         elif params['grant_type'] in ['implicit', 'hybrid']:
             token = provider.tokens.create_token(
                 user=user,
                 client=client,
+                auth_time=user['auth_time'],
                 scope=params['scopes'],
                 expire_delta=provider.token_expire_time,
                 specific_claims=params['specific_claims']
@@ -62,6 +62,7 @@ async def create_authorize_response_params(request: sanic.request.Request, param
                 issuer = '{0}://{1}'.format(scheme, request.host)
 
                 kwargs = {
+                    'auth_time': token['auth_time'],
                     'user': user,
                     'client': client,
                     'issuer': issuer,

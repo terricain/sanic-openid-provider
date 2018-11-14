@@ -32,6 +32,7 @@ async def create_refresh_response_dic(request: sanic.request.Request, params: Di
         user=user,
         client=client,
         scope=scope,
+        auth_time=params['token_obj']['auth_time'],
         specific_claims=params['specific_claims'],
         expire_delta=provider.token_expire_time
     )
@@ -43,6 +44,7 @@ async def create_refresh_response_dic(request: sanic.request.Request, params: Di
     if params['token_obj']['id_token']:
         id_token_dic = provider.tokens.create_id_token(
             user=user,
+            auth_time=token['auth_time'],
             issuer=issuer,
             client=client,
             nonce=None,
@@ -81,6 +83,7 @@ async def create_code_response_dic(request: sanic.request.Request, params: Dict[
     token = provider.tokens.create_token(
         user=user,
         client=client,
+        auth_time=params['code_obj']['auth_time'],
         scope=params['code_obj']['scope'],
         expire_delta=provider.token_expire_time,
         specific_claims=params['code_obj']['specific_claims'],
@@ -90,8 +93,9 @@ async def create_code_response_dic(request: sanic.request.Request, params: Dict[
     scheme = get_scheme(request)
     issuer = '{0}://{1}'.format(scheme, request.host)
 
-    id_token = provider.tokens.create_id_token(
+    id_token_dic = provider.tokens.create_id_token(
         user=user,
+        auth_time=token['auth_time'],
         client=client,
         issuer=issuer,
         expire_delta=provider.token_expire_time,
@@ -101,12 +105,12 @@ async def create_code_response_dic(request: sanic.request.Request, params: Dict[
         specific_claims=token['specific_claims']
     )
 
-    token['id_token'] = id_token
+    token['id_token'] = id_token_dic
     await provider.tokens.save_token(token)
     await provider.codes.mark_used_by_id(params['code'])
 
     id_token = await client.sign(
-        id_token,
+        id_token_dic,
         jwk_set=provider.jwk_set
     )
 

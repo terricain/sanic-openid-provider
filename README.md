@@ -3,7 +3,7 @@
 It's a work-in-progress, Alpha stage I would say. If anyone finds this useful / wants to use it, drop an issue I'd be
 more than happy to fix it up so its actually helpful to someone other than myself.
 
-Last time I checked it passed around 75 / 93 of the OpenID Connect 
+Last time I checked it passed around 82 / 93 of the OpenID Connect 
 Provider Certification tests that appear when you tick `webfinger`, `dynamic info discovery`, `dynamic client 
 registration` and select `code` response type.
 
@@ -16,19 +16,19 @@ Docs and examples will be coming soon.
 
 As said above it passes most of the OpenID tests I've ran against it. Below are the ones I haven't passed yet
 
-### Dynamic Client Registration
-
-Haven't yet stored those values on client registration
-* `OP-Registration-logo_uri`
-* `OP-Registration-policy_uri`
-* `OP-Registration-tos_uri`
-
 ### Signature + Encryption
 
 Haven't figured out why the userinfo enc/sig doesnt work yet.
 * `OP-IDToken-SigEnc`
 * `OP-UserInfo-SigEnc`
 * `OP-request_uri-SigEnc`
+
+### Claims
+
+Haven't got around to this bit yet
+* `OP-claims-acr-essential`
+* `OP-claims-acr-voluntary`
+* `OP-claims-acr=1`
 
 ### Popup
 
@@ -39,8 +39,6 @@ Doesnt display in a popup box
 
 Haven't dealt with this yet.
 * `OP-Req-acr_values`
-* `OP-Req-max_age=1`
-* `OP-Req-max_age=10000`
 
 ### Key Rotation
 

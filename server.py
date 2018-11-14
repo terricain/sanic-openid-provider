@@ -12,8 +12,8 @@ from jinja2 import FileSystemLoader
 from sanic_oicp import setup
 
 from sanic_oicp.models.clients import DynamoDBClientStore
-from sanic_oicp.models.token import DynamoDBTokenStore
-from sanic_oicp.models.code import DynamoDBCodeStore
+from sanic_oicp.models.token import RedisTokenStore
+from sanic_oicp.models.code import RedisCodeStore
 
 oicp_logger = logging.getLogger('oicp')
 oicp_logger.setLevel(logging.INFO)
@@ -28,8 +28,8 @@ oicp_provider = setup(
     app=app,
     private_keys=[os.path.join(res_dir, 'ec.pem'), os.path.join(res_dir, 'rsa.pem')],
     client_manager_class=DynamoDBClientStore,
-    token_manager_class=DynamoDBTokenStore,
-    code_manager_class=DynamoDBCodeStore
+    token_manager_class=RedisTokenStore,
+    code_manager_class=RedisCodeStore
 )
 
 #

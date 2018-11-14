@@ -41,6 +41,9 @@ class Client(object):
                  userinfo_signed_response_alg: str=None,
                  userinfo_encrypted_response_alg: str=None,
                  userinfo_encrypted_response_enc: str=None,
+                 logo_uri: str=None,
+                 policy_uri: str=None,
+                 tos_uri: str=None,
 
                  access_token=None,
                  jwk=None,
@@ -262,8 +265,11 @@ class ClientStore(object):
                          request_urls: Tuple[str, ...] = None,
                          sector_identifier_uri: str=None,
                          userinfo_signed_response_alg: str=None,
-                         userinfo_encrypted_response_alg: str = None,
-                         userinfo_encrypted_response_enc: str = None,
+                         userinfo_encrypted_response_alg: str=None,
+                         userinfo_encrypted_response_enc: str=None,
+                         logo_uri: str=None,
+                         policy_uri: str=None,
+                         tos_uri: str=None,
 
                          jwks: Dict[str, Any] = None
                          ) -> Tuple[bool, Union[str, Client]]:
@@ -305,6 +311,9 @@ class InMemoryClientStore(ClientStore):
                          userinfo_signed_response_alg: str=None,
                          userinfo_encrypted_response_alg: str = None,
                          userinfo_encrypted_response_enc: str = None,
+                         logo_uri: str=None,
+                         policy_uri: str=None,
+                         tos_uri: str=None,
 
                          jwks: Dict[str, Any] = None
                          ) -> Tuple[bool, Union[str, Client]]:
@@ -411,6 +420,9 @@ class DynamoDBClientStore(ClientStore):
                          userinfo_signed_response_alg: str=None,
                          userinfo_encrypted_response_alg: str = None,
                          userinfo_encrypted_response_enc: str = None,
+                         logo_uri: str=None,
+                         policy_uri: str=None,
+                         tos_uri: str=None,
 
                          jwks: Dict[str, Any]=None
                          ) -> Tuple[bool, Union[str, Client]]:

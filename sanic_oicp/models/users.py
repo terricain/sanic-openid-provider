@@ -49,7 +49,24 @@ class UserManager(object):
         pass
 
     async def is_authenticated(self, request: sanic.request.Request) -> bool:
-        return 'user' in request['session']
+        user_sess = request['session'].get('user')
+        if user_sess:
+            max_age = int(request.args.get('max_age', '0') if request.method == 'GET' else request.form.get('max_age', '0'))
+
+            # If they havent provided max_time, then your authed
+            if max_age > 0:
+                now = datetime.datetime.now().timestamp()
+
+                # If the time since you authed is greater than max_time, clear session
+                if (now - user_sess['auth_time']) > max_age:
+                    request['session'].clear()
+                    return False
+                else:
+                    return True
+
+            else:
+                return True
+        return False
 
     async def get_user(self, request: sanic.request.Request) -> Dict[str, Any]:
         session_user = request['session']['user']

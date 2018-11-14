@@ -1,23 +1,24 @@
 import logging
 import jwcrypto.jwk
-from typing import List, Union, Type, Dict, Any, TYPE_CHECKING
+import inspect
+from typing import List, Union, Type, Dict, Any, TypeVar
 
-if TYPE_CHECKING:
-    from sanic_oicp.models.users import UserManager
-    from sanic_oicp.models.clients import ClientStore
-    from sanic_oicp.models.code import CodeStore
-    from sanic_oicp.models.token import TokenStore
+from sanic_oicp.models.users import UserManager
+from sanic_oicp.models.clients import ClientStore
+from sanic_oicp.models.code import CodeStore
+from sanic_oicp.models.token import TokenStore
 
 
 logger = logging.getLogger('oicp')
+T = TypeVar('T')
 
 
 class Provider(object):
     def __init__(self,
-                 user_manager_class: Type['UserManager'],
-                 client_manager_class: Type['ClientStore'],
-                 code_manager_class: Type['CodeStore'],
-                 token_manager_class: Type['TokenStore'],
+                 user_manager_class: Union[Type[UserManager], UserManager],
+                 client_manager_class: Union[Type[ClientStore], ClientStore],
+                 code_manager_class: Union[Type[CodeStore], CodeStore],
+                 token_manager_class: Union[Type[TokenStore], TokenStore],
 
                  login_function_name: str='login',
                  token_expire_time: int=86400,
@@ -27,10 +28,10 @@ class Provider(object):
 
         self.jwk_set = jwcrypto.jwk.JWKSet()
 
-        self.users: 'UserManager' = user_manager_class(provider=self)
-        self.clients: 'ClientStore' = client_manager_class(provider=self)
-        self.codes: 'CodeStore' = code_manager_class(provider=self)
-        self.tokens: 'TokenStore' = token_manager_class(provider=self)
+        self.users: UserManager = self._class_or_object(user_manager_class)
+        self.clients: ClientStore = self._class_or_object(client_manager_class)
+        self.codes: CodeStore = self._class_or_object(code_manager_class)
+        self.tokens: TokenStore = self._class_or_object(token_manager_class)
 
         self.login_function_name = login_function_name
         self.token_expire_time = token_expire_time
@@ -43,6 +44,14 @@ class Provider(object):
         await self.clients.setup()
         await self.codes.setup()
         await self.tokens.setup()
+
+    def _class_or_object(self, obj: Union[Type[T], T]) -> T:
+        if inspect.isclass(obj):
+            inst = obj(provider=self)
+        else:
+            inst = obj
+            inst.set_provider(self)
+        return inst
 
     def load_keys(self, keys: List[Union[str, jwcrypto.jwk.JWK]]=None):
         """
@@ -68,4 +77,3 @@ class Provider(object):
             result = {"subject": resource, "links": []}
 
         return result
-

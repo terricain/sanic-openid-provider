@@ -211,7 +211,7 @@ async def client_register_handler(request: sanic.request.Request) -> sanic.respo
                             raise Exception('Invalid redirect uris: {0}'.format(invalid_uris))
 
             except Exception as err:
-                logger.exception('Failed to get sector identifier uri', exc_info=err)
+                logger.warning('Failed to get sector identifier uri: {0}'.format(err))
                 result = {'error': 'invalid_client_metadata', 'error_description': 'Failed to validate sector identifier uri, {0}'.format(err)}
                 return sanic.response.json(result, status=400)
 
@@ -236,12 +236,13 @@ async def client_register_handler(request: sanic.request.Request) -> sanic.respo
             sector_identifier_uri=sector_identifier_uri,
             userinfo_signed_response_alg=userinfo_signed_response_alg,
             userinfo_encrypted_response_alg=userinfo_encrypted_response_alg,
-            userinfo_encrypted_response_enc=userinfo_encrypted_response_enc
+            userinfo_encrypted_response_enc=userinfo_encrypted_response_enc,
+
+            jwks=jwks
         )
 
         if success:
             client: Client = data
-            await client.load_jwks(jwk_dict=jwks)
 
             result = {
                 'client_id': client_id,

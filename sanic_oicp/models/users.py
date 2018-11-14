@@ -42,6 +42,9 @@ class UserManager(object):
     def __init__(self, provider):
         self._provider = provider
 
+    def set_provider(self, provider):
+        self._provider = provider
+
     async def setup(self):
         pass
 

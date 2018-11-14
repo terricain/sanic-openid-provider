@@ -11,6 +11,10 @@ from jinja2 import FileSystemLoader
 
 from sanic_oicp import setup
 
+from sanic_oicp.models.clients import DynamoDBClientStore
+from sanic_oicp.models.token import DynamoDBTokenStore
+from sanic_oicp.models.code import DynamoDBCodeStore
+
 oicp_logger = logging.getLogger('oicp')
 oicp_logger.setLevel(logging.INFO)
 oicp_logger.addHandler(logging.StreamHandler())
@@ -19,9 +23,14 @@ app = sanic.Sanic()
 session = Session(app, interface=InMemorySessionInterface())
 jinja = SanicJinja2(app, loader=FileSystemLoader('./templates'), enable_async=True)
 
-RESOURCES_DIR = os.path.join(os.path.dirname(__file__), 'resources')
-
-oicp_provider = setup(app, private_keys=[os.path.join(RESOURCES_DIR, 'ec.pem'), os.path.join(RESOURCES_DIR, 'rsa.pem')])
+res_dir = os.path.join(os.path.dirname(__file__), 'resources')
+oicp_provider = setup(
+    app=app,
+    private_keys=[os.path.join(res_dir, 'ec.pem'), os.path.join(res_dir, 'rsa.pem')],
+    client_manager_class=DynamoDBClientStore,
+    token_manager_class=DynamoDBTokenStore,
+    code_manager_class=DynamoDBCodeStore
+)
 
 #
 # def create_client_credentials_response_dic(request: sanic.request.Request, params: Dict[str, Any]) -> Dict[str, Any]:

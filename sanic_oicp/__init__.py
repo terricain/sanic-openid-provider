@@ -37,10 +37,10 @@ def setup(app: sanic.Sanic,
           grant_type_password: bool=False,
           private_keys: List[str]=None,
 
-          user_manager_class: Type[UserManager]=UserManager,
-          client_manager_class: Type[ClientStore]=InMemoryClientStore,
-          code_manager_class: Type[CodeStore]=InMemoryCodeStore,
-          token_manager_class: Type[TokenStore]=InMemoryTokenStore
+          user_manager_class: Union[Type[UserManager], UserManager]=UserManager,
+          client_manager_class: Union[Type[ClientStore], ClientStore]=InMemoryClientStore,
+          code_manager_class: Union[Type[CodeStore], CodeStore]=InMemoryCodeStore,
+          token_manager_class: Union[Type[TokenStore], TokenStore]=InMemoryTokenStore
           ) -> Provider:
 
     app.add_route(well_known_config_handler, wellknown_config_path, frozenset({'GET'}))

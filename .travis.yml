@@ -1,20 +1,20 @@
 language: python
 
 python:
-    - 3.6
+  - 3.6
 
 install: pip install -U tox-travis
 
 script: echo test
 
 deploy:
-    provider: pypi
-    user: terrycain
-    distributions: "sdist bdist_wheel"
-    password:
-        secure: "hi4SDCDb+LhBJ+0n3yUUOXrtm/ROEFGl7kpgd4ii9dUamSB+lahe03JAiXI6NnJAo0UB0whojNUGPAdBVPfE0+NgHinYdZyak+DoS4NGxM9xtltKhFvAhHjW2KZziTZXUlQLG/d8tzWBS7JxNBxnrxf3jx1fAFOih9iKqy1/wNCENaaaSGaKvfMdQS1hU0YREH0h9KQP1E/3i8VfR2C0WV4fo+MSXdwPQjBd1hQNvek4fq+vyFYgL6+h+ntebrg6HjNdUiO60z9S3qJff8MXPNIwMReAjrN8NMIkQHDo9Sr1rik9NXB0525vjDfosjuqSMRVhEB9FYFGMUDdbSnYdaKmHijzxTmB6QT2zh5KEfuP9uo7BxNz460Z/ZiH33Qt4+V3SJ9wgdNYdJqL6Ak0kQ+QGzY3ZNqrwQ6oGwBMrP5pkoUEGK8QVeuzfHlO9peoZS7FNHvEQcYmlqcjt19Hb5fS0R3YvuKvVBEyp+PlHspwnV7ieW+xpQMAA4Pz8blSLMada4Udxysiz0oEnKZz9UV74FqwcDCAaTJzz9EmRjoLPdwJ5lsVWeYbMniZkXtEpOeRafb9/d3nFgs/Exv+FBGmiNXM/9NaxCfrI/AfwdLzB+w3hxnXfPgoFbeVd/6kHKZVOvaWn+UF3abxM8tiN38wS7L7//DKw3+PEAS/wk4="
-    on:
-        tags: true
-        repo: terrycain/sanic-openid-provider
-        all_branches: true
-        python: 3.6
+  provider: pypi
+  user: terrycain
+  distributions: sdist bdist_wheel
+  password:
+    secure: bNEdUEQHRqsgSBw7jixWZVID7/YTBGll1IdymKApJf6iRRjZY7zih4CIh5ygT5ZuDqAXYiB9RMOsRm1Rhk0QQ7/FRcLAh+5HbOpcLIITrmNn26+I7ojhBGU+BzhgCL1ar9MQuHJwY3ot3WUhjdX11bjODhwrzfW49qkQ7a99B2k+zm8VvNH/X+vSyGH1TMlrTgutRJ2kd6fM+IvT+siFdz1nrswun2rtsFqTs4/qoNfSQflxOccKLlaaAMItQ63/jSg2VtBJNLDzeZQTcaXYTN+HC0iTNxk8I5Skkcgyx8Hn8qG/oNkS2MPnIWK75Gb542QgFsesySVUW2/28UlAYOEqt5d2Stuf5xYK5HCDMGVoPW/eYSjyotZuYUp/WEv5/exXWBvhmfw5tZeFQ1y/2SyddQn+XtDgf0HqTOh3H/NMu0MvGNSspCD/ULCqKdmx+hX/8iNxs9B9ZJs661s/hMh6Xtx1ABVtqCHREeTk6ss479eD1NySYRyD9hbpfcaPq9HhNL0Xq6E5d3l+sUZEkRDzleTPugUcE8nxjgHRxAadek0ipLAd+HCTa67cUU9rypIysfRVGDCzyu5TS+dzS72lGk2QZ751Az9pFUb4FMKg2AS4xGrJhOFuJoHDkcGludi8bVYAOH2aO7Fzg/jrBvqvplptO2pWaN+xyHzFMIc=
+  on:
+    tags: true
+    repo: terrycain/sanic-openid-provider
+    all_branches: true
+    python: 3.6

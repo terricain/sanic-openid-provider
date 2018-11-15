@@ -6,6 +6,8 @@ python:
 
 install: pip install -U tox-travis
 
+script: echo test
+
 deploy:
     provider: pypi
     user: terrycain

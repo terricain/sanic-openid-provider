@@ -18,7 +18,7 @@ requirements = [
 ]
 
 setup_requirements = [
-    'setuptools_scm'
+    'setuptools_scm>=3.1.0'
 ]
 
 # test_requirements = [
@@ -43,7 +43,7 @@ setup(
     author="Terry Cain",
     author_email='terry@terrys-home.co.uk',
     url='https://github.com/terrycain/sanic-openid-provider',
-    download_url='https://pypi.python.org/pypi/sanic_openid_connect_provider',
+    download_url='https://pypi.python.org/pypi/sanic-openid-provider',
     packages=find_packages(include=['sanic_openid_connect_provider']),
     include_package_data=True,
     install_requires=requirements,
@@ -59,5 +59,5 @@ setup(
     ],
     test_suite='tests',
     tests_require=[],
-    setup_requires=[],
+    setup_requires=setup_requirements,
 )

@@ -1,6 +1,16 @@
 Sanic OpenID Connect Provider
 =============================
 
+.. image:: https://img.shields.io/pypi/v/sanic_openid_connect_provider.svg
+        :target: https://pypi.python.org/pypi/sanic_openid_connect_provider
+
+.. image:: https://img.shields.io/travis/terrycain/sanic-openid-provider.svg
+        :target: https://travis-ci.org/terrycain/sanic-openid-provider
+
+.. image:: https://pyup.io/repos/github/terrycain/sanic-openid-provider/shield.svg
+     :target: https://pyup.io/repos/github/terrycain/sanic-openid-provider/
+     :alt: Updates
+
 It's a work-in-progress, Alpha stage I would say. If anyone finds this useful / wants to use it, drop an issue I'd be
 more than happy to fix it up so its actually helpful to someone other than myself.
 

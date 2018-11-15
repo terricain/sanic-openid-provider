@@ -1,11 +1,11 @@
+from typing import Any, TYPE_CHECKING
+from urllib.parse import urlsplit, parse_qs, urlunsplit, urlencode
+
 from sanic.request import Request
 from sanic.response import HTTPResponse
-from urllib.parse import urlsplit, parse_qs, urlunsplit, urlencode
-from typing import Any, TYPE_CHECKING
-
 
 if TYPE_CHECKING:
-    from sanic_oicp.provider import Provider
+    from sanic_openid_connect_provider.provider import Provider
 
 
 def get_scheme(request: Request) -> str:

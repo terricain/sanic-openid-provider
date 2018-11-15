@@ -1,18 +1,16 @@
-import uuid
-import jwt
-import aiohttp
 import logging
+import uuid
 from typing import Tuple, Union, Dict, Optional, Any, AsyncGenerator
-import jwcrypto.jwk
-import jwcrypto.jwe
-import jwcrypto.common
-import jwcrypto.jws
-# import jose.jws
 
 import aioboto3
-from boto3.dynamodb.conditions import Key, Attr
+import aiohttp
+import jwcrypto.common
+import jwcrypto.jwe
+import jwcrypto.jwk
+import jwcrypto.jws
+import jwt
+from boto3.dynamodb.conditions import Attr
 from botocore.config import Config
-
 
 logger = logging.getLogger('oicp')
 

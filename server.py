@@ -9,11 +9,11 @@ from sanic_jinja2 import SanicJinja2
 from sanic_session import Session, InMemorySessionInterface
 from jinja2 import FileSystemLoader
 
-from sanic_oicp import setup
+from sanic_openid_connect_provider import setup
 
-from sanic_oicp.models.clients import DynamoDBClientStore
-from sanic_oicp.models.token import RedisTokenStore
-from sanic_oicp.models.code import RedisCodeStore
+from sanic_openid_connect_provider.models.clients import DynamoDBClientStore
+from sanic_openid_connect_provider.models.token import RedisTokenStore
+from sanic_openid_connect_provider.models.code import RedisCodeStore
 
 oicp_logger = logging.getLogger('oicp')
 oicp_logger.setLevel(logging.INFO)

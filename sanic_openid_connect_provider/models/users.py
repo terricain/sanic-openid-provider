@@ -1,8 +1,8 @@
-import sanic.request
 import datetime
 import logging
 from typing import Dict, Any, List, Union, KeysView
 
+import sanic.request
 
 TEST_USER = {
     'username': 'testuser',  # Required

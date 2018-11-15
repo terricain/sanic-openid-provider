@@ -6,11 +6,11 @@ from urllib.parse import urlsplit, parse_qs, urlunsplit, urlencode, unquote
 import sanic.request
 import sanic.response
 
-from sanic_oicp.exceptions import *
-from sanic_oicp.utils import strip_prompt_login, redirect, get_scheme, get_provider
+from sanic_openid_connect_provider.exceptions import *
+from sanic_openid_connect_provider.utils import strip_prompt_login, redirect, get_scheme, get_provider
 
 if TYPE_CHECKING:
-    from sanic_oicp.provider import Provider
+    from sanic_openid_connect_provider.provider import Provider
 
 
 logger = logging.getLogger('oicp')

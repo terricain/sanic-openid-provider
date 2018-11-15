@@ -1,13 +1,13 @@
-import logging
-import jwcrypto.jwk
 import inspect
+import logging
 from typing import List, Union, Type, Dict, Any, TypeVar
 
-from sanic_oicp.models.users import UserManager
-from sanic_oicp.models.clients import ClientStore
-from sanic_oicp.models.code import CodeStore
-from sanic_oicp.models.token import TokenStore
+import jwcrypto.jwk
 
+from sanic_openid_connect_provider.models.clients import ClientStore
+from sanic_openid_connect_provider.models.code import CodeStore
+from sanic_openid_connect_provider.models.token import TokenStore
+from sanic_openid_connect_provider.models.users import UserManager
 
 logger = logging.getLogger('oicp')
 T = TypeVar('T')

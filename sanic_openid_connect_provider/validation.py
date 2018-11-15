@@ -2,8 +2,8 @@ from typing import Dict, Any
 
 from sanic.request import Request
 
-from sanic_oicp.utils import get_provider
-from sanic_oicp.exceptions import *
+from sanic_openid_connect_provider.exceptions import *
+from sanic_openid_connect_provider.utils import get_provider
 
 
 async def validate_userinfo_params(request: Request) -> Dict[str, Any]:

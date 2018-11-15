@@ -1,16 +1,15 @@
-import json
-import hashlib
-import jwt
-import logging
 import base64
+import hashlib
+import json
+import logging
 from typing import Dict, Any
 
+import jwt
 import sanic.request
 import sanic.response
-from sanic_oicp.exceptions import TokenError, UserAuthError
 
-from sanic_oicp.utils import get_scheme, get_provider
-
+from sanic_openid_connect_provider.exceptions import TokenError, UserAuthError
+from sanic_openid_connect_provider.utils import get_scheme, get_provider
 
 logger = logging.getLogger('oicp')
 

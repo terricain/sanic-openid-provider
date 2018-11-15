@@ -1,21 +1,21 @@
+import base64
+import binascii
 import datetime
 import hashlib
 import logging
 import pickle
 import uuid
-import base64
-import binascii
 from typing import Dict, Tuple, Any, Optional, List, Union, TYPE_CHECKING
 
 import aioboto3
-from boto3.dynamodb.conditions import Key, Attr
-from botocore.config import Config
 import aioredis
+from boto3.dynamodb.conditions import Attr
+from botocore.config import Config
 
-from sanic_oicp.utils import masked
+from sanic_openid_connect_provider.utils import masked
 
 if TYPE_CHECKING:
-    from sanic_oicp.models.clients import Client
+    from sanic_openid_connect_provider.models.clients import Client
 
 logger = logging.getLogger('oicp')
 

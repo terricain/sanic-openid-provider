@@ -1,18 +1,17 @@
 import datetime
 import logging
-import uuid
 import pickle
+import uuid
 from typing import Dict, Tuple, Any, Union, Optional, TYPE_CHECKING
 
-from sanic_oicp.utils import masked
-
 import aioboto3
-from boto3.dynamodb.conditions import Key, Attr
-from botocore.config import Config
 import aioredis
+from botocore.config import Config
+
+from sanic_openid_connect_provider.utils import masked
 
 if TYPE_CHECKING:
-    from sanic_oicp.models.clients import Client
+    from sanic_openid_connect_provider.models.clients import Client
 
 
 logger = logging.getLogger('oicp')

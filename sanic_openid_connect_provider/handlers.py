@@ -1,14 +1,13 @@
-import aiohttp
-import uuid
 import logging
+import uuid
 
+import aiohttp
 import sanic.request
 import sanic.response
 
-from sanic_oicp.utils import get_scheme, get_provider
-from sanic_oicp.validation import *
-from sanic_oicp.models.clients import Client
-
+from sanic_openid_connect_provider.models.clients import Client
+from sanic_openid_connect_provider.utils import get_scheme
+from sanic_openid_connect_provider.validation import *
 
 logger = logging.getLogger('oicp')
 

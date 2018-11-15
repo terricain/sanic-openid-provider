@@ -1,23 +1,23 @@
-import uuid
-import base64
-import hashlib
-import binascii
-import datetime
 import logging
-from typing import Union, Tuple, Dict, Any, Type, Optional, List
+from typing import Union, Type, List
 
 import sanic.request
+from pkg_resources import get_distribution, DistributionNotFound
 
-from sanic_oicp.handlers import well_known_config_handler, well_known_finger_handler, jwk_handler, userinfo_handler, client_register_handler
-from sanic_oicp.authorize_endpoint import authorize_handler
-from sanic_oicp.token_endpoint import token_handler
-from sanic_oicp.utils import masked
-from sanic_oicp.provider import Provider
+from sanic_openid_connect_provider.authorize_endpoint import authorize_handler
+from sanic_openid_connect_provider.handlers import well_known_config_handler, well_known_finger_handler, jwk_handler, userinfo_handler, client_register_handler
+from sanic_openid_connect_provider.models.clients import ClientStore, InMemoryClientStore
+from sanic_openid_connect_provider.models.code import CodeStore, InMemoryCodeStore
+from sanic_openid_connect_provider.models.token import TokenStore, InMemoryTokenStore
+from sanic_openid_connect_provider.models.users import UserManager
+from sanic_openid_connect_provider.provider import Provider
+from sanic_openid_connect_provider.token_endpoint import token_handler
+from sanic_openid_connect_provider.utils import masked
 
-from sanic_oicp.models.clients import ClientStore, InMemoryClientStore
-from sanic_oicp.models.users import UserManager
-from sanic_oicp.models.code import CodeStore, InMemoryCodeStore
-from sanic_oicp.models.token import TokenStore, InMemoryTokenStore
+try:
+    __version__ = get_distribution(__name__).verison
+except DistributionNotFound:
+    __version__ = 'unknown'
 
 
 logger = logging.getLogger('oicp')

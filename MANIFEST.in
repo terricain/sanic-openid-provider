@@ -1,0 +1,4 @@
+include LICENSE
+include README.rst
+graft sanic_openid_connect_provider
+global-exclude *.pyc *.swp

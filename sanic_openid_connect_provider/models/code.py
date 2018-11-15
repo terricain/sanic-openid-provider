@@ -18,7 +18,7 @@ logger = logging.getLogger('oicp')
 
 
 class CodeStore(object):
-    def __init__(self, provider):
+    def __init__(self, provider=None):
         self._provider = provider
 
     def set_provider(self, provider):

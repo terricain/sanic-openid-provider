@@ -2,7 +2,6 @@ import logging
 from typing import Union, Type, List
 
 import sanic.request
-from pkg_resources import get_distribution, DistributionNotFound
 
 from sanic_openid_connect_provider.authorize_endpoint import authorize_handler
 from sanic_openid_connect_provider.handlers import well_known_config_handler, well_known_finger_handler, jwk_handler, userinfo_handler, client_register_handler
@@ -15,8 +14,8 @@ from sanic_openid_connect_provider.token_endpoint import token_handler
 from sanic_openid_connect_provider.utils import masked
 
 try:
-    __version__ = get_distribution(__name__).verison
-except DistributionNotFound:
+    from sanic_openid_connect_provider.version import version as __version__
+except ImportError:
     __version__ = 'unknown'
 
 

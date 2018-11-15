@@ -57,16 +57,17 @@ class Provider(object):
         """
         Takes a list of keys or paths to pem encoded certificates
         """
-        for key in keys:
-            if isinstance(key, jwcrypto.jwk.JWK):
-                self.jwk_set.add(key)
-                logger.info('Added {0} key {1}'.format(key.key_type, key.key_id))
-            else:
-                pem = open(key, 'rb').read()
+        if keys:
+            for key in keys:
+                if isinstance(key, jwcrypto.jwk.JWK):
+                    self.jwk_set.add(key)
+                    logger.info('Added {0} key {1}'.format(key.key_type, key.key_id))
+                else:
+                    pem = open(key, 'rb').read()
 
-                jwk_obj = jwcrypto.jwk.JWK.from_pem(pem)
-                self.jwk_set.add(jwk_obj)
-                logger.info('Added {0} key {1}'.format(jwk_obj.key_type, jwk_obj.key_id))
+                    jwk_obj = jwcrypto.jwk.JWK.from_pem(pem)
+                    self.jwk_set.add(jwk_obj)
+                    logger.info('Added {0} key {1}'.format(jwk_obj.key_type, jwk_obj.key_id))
 
     def handle_finger(self, resource: str, rel: str, issuer: str, finger_url: str) -> Dict[str, Any]:
         if resource == finger_url and rel == 'http://openid.net/specs/connect/1.0/issuer':

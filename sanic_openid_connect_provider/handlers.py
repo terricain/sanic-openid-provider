@@ -23,8 +23,10 @@ async def well_known_config_handler(request: sanic.request.Request) -> sanic.res
         'jwks_uri': request.app.url_for('jwk_handler', _scheme=scheme, _external=True, _server=request.host),
         'registration_endpoint': request.app.url_for('client_register_handler', _scheme=scheme, _external=True, _server=request.host),
         'login_hint': 'N/A',
-        # 'end_session_endpoint'
-        # 'introspection_endpoint'
+        # TODO 'end_session_endpoint'
+        # TODO 'introspection_endpoint'
+
+        # TODO code_challenge_methods_supported
 
         'request_parameter_supported': True,
         'response_types_supported': ['code', 'id_token', 'id_token token', 'code token', 'code id_token', 'code id_token token'],

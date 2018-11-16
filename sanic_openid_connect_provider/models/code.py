@@ -2,7 +2,7 @@ import datetime
 import logging
 import pickle
 import uuid
-from typing import Dict, Tuple, Any, Union, Optional, TYPE_CHECKING
+from typing import Dict, Tuple, Any, Union, Optional, TYPE_CHECKING, AsyncGenerator
 
 import aioboto3
 import aioredis
@@ -66,6 +66,10 @@ class CodeStore(object):
     async def mark_used_by_id(self, id_: str):
         raise NotImplementedError()
 
+    async def all(self) -> AsyncGenerator[Dict[str, Any], None]:
+        if False:  # For typing
+            yield {}
+
 
 class InMemoryCodeStore(CodeStore):
     def __init__(self, *args, **kwargs):
@@ -101,6 +105,10 @@ class InMemoryCodeStore(CodeStore):
             logger.info('Marked code {0} as used'.format(masked(code['code'])))
         except KeyError:
             pass
+
+    async def all(self) -> AsyncGenerator[Dict[str, Any], None]:
+        for value in self._store.values():
+            yield value
 
 
 class DynamoDBCodeStore(CodeStore):
@@ -146,6 +154,12 @@ class DynamoDBCodeStore(CodeStore):
         except Exception as err:
             logger.exception('Failed to mark code {0} as used'.format(masked(id_)), exc_info=err)
 
+    async def all(self) -> AsyncGenerator[Dict[str, Any], None]:
+        resp = await self._table.scan()
+
+        for code in resp.get('Items', []):
+            yield code
+
 
 class RedisCodeStore(CodeStore):
     def __init__(self, *args, redis_host: str='localhost', port: int=6379, db: int=0, **kwargs):
@@ -187,3 +201,16 @@ class RedisCodeStore(CodeStore):
             logger.info('Marked code {0} as used'.format(masked(id_)))
         except Exception as err:
             logger.exception('Failed to mark code {0} as used'.format(masked(id_)), exc_info=err)
+
+    async def all(self) -> AsyncGenerator[Dict[str, Any], None]:
+        try:
+            all_code_keys = await self._redis.keys('code_*')
+            if all_code_keys:
+                # Iterate through all tokens, unpickle them
+                all_codes = await self._redis.mget(*all_code_keys)
+                for code_pickle in all_codes:
+                    code = pickle.loads(code_pickle)
+                    yield code
+
+        except Exception as err:
+            logger.exception('Failed to get all codes', exc_info=err)

@@ -5,7 +5,7 @@ import hashlib
 import logging
 import pickle
 import uuid
-from typing import Dict, Tuple, Any, Optional, List, Union, TYPE_CHECKING
+from typing import Dict, Tuple, Any, Optional, List, Union, TYPE_CHECKING, AsyncGenerator
 
 import aioboto3
 import aioredis
@@ -119,6 +119,10 @@ class TokenStore(object):
     async def get_token_by_access_token(self, access_token: str) -> Union[Dict[str, Any], None]:
         raise NotImplementedError()
 
+    async def all(self) -> AsyncGenerator[Dict[str, Any], None]:
+        if False:  # For typing
+            yield {}
+
 
 class InMemoryTokenStore(TokenStore):
     def __init__(self, *args, **kwargs):
@@ -160,6 +164,10 @@ class InMemoryTokenStore(TokenStore):
             return self._store[access_token]
         except KeyError:
             return None
+
+    async def all(self) -> AsyncGenerator[Dict[str, Any], None]:
+        for value in self._store.values():
+            yield value
 
 
 class DynamoDBTokenStore(TokenStore):
@@ -212,6 +220,12 @@ class DynamoDBTokenStore(TokenStore):
         except Exception as err:
             logger.exception('Failed to get token {0}'.format(masked(access_token)), exc_info=err)
         return None
+
+    async def all(self) -> AsyncGenerator[Dict[str, Any], None]:
+        resp = await self._table.scan()
+
+        for code in resp.get('Items', []):
+            yield code
 
 
 class RedisTokenStore(TokenStore):
@@ -286,3 +300,16 @@ class RedisTokenStore(TokenStore):
         except Exception as err:
             logger.exception('Failed to get token {0}'.format(masked(access_token)), exc_info=err)
         return None
+
+    async def all(self) -> AsyncGenerator[Dict[str, Any], None]:
+        try:
+            all_token_keys = await self._redis.keys('token_*')
+            if all_token_keys:
+                # Iterate through all tokens, unpickle them
+                all_tokens = await self._redis.mget(*all_token_keys)
+                for token_pickle in all_tokens:
+                    token = pickle.loads(token_pickle)
+                    yield token
+
+        except Exception as err:
+            logger.exception('Failed to get all tokens', exc_info=err)

@@ -277,7 +277,8 @@ class ClientStore(object):
         raise NotImplementedError()
 
     async def all(self) -> AsyncGenerator[Client, None]:
-        raise NotImplementedError()
+        if False:  # For typing
+            yield Client()
 
 
 class InMemoryClientStore(ClientStore):

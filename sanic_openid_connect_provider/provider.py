@@ -1,6 +1,6 @@
 import inspect
 import logging
-from typing import List, Union, Type, Dict, Any, TypeVar
+from typing import List, Union, Type, Dict, Any, TypeVar, Coroutine
 
 import jwcrypto.jwk
 
@@ -24,7 +24,10 @@ class Provider(object):
                  token_expire_time: int=86400,
                  code_expire_time: int=86400,
 
-                 allow_grant_type_password: bool=False):
+                 allow_grant_type_password: bool=False,
+                 open_client_registration: bool = True,
+                 client_registration_key: Union[str, None, Coroutine[str, None, bool]] = None,
+                 ):
 
         self.jwk_set = jwcrypto.jwk.JWKSet()
 
@@ -38,6 +41,8 @@ class Provider(object):
         self.code_expire_time = code_expire_time
 
         self.allow_grant_type_password = allow_grant_type_password
+        self.open_client_registration = open_client_registration
+        self.client_registration_key = client_registration_key
 
     async def setup(self):
         await self.users.setup()

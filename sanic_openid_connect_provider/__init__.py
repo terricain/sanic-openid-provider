@@ -1,5 +1,5 @@
 import logging
-from typing import Union, Type, List
+from typing import Union, Type, List, Awaitable
 
 import sanic.request
 
@@ -35,6 +35,8 @@ def setup(app: sanic.Sanic,
           code_expire: int=86400,
           grant_type_password: bool=False,
           private_keys: List[str]=None,
+          open_client_registration: bool=True,
+          client_registration_key: Union[str, None, Awaitable[bool]]=None,
 
           user_manager_class: Union[Type[UserManager], UserManager]=UserManager,
           client_manager_class: Union[Type[ClientStore], ClientStore]=InMemoryClientStore,
@@ -60,7 +62,9 @@ def setup(app: sanic.Sanic,
         token_expire_time=token_expire,
         code_expire_time=code_expire,
 
-        allow_grant_type_password=grant_type_password
+        allow_grant_type_password=grant_type_password,
+        open_client_registration=open_client_registration,
+        client_registration_key=client_registration_key,
     )
     app.config['oicp_provider'].load_keys(private_keys)
 

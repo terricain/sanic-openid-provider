@@ -1,3 +1,4 @@
+import inspect
 import logging
 import uuid
 from typing import Tuple, Union, Dict, Optional, Any, AsyncGenerator
@@ -9,8 +10,12 @@ import jwcrypto.jwe
 import jwcrypto.jwk
 import jwcrypto.jws
 import jwt
+import sanic.request
+import sanic.response
 from boto3.dynamodb.conditions import Attr
 from botocore.config import Config
+
+from sanic_openid_connect_provider.utils import masked
 
 logger = logging.getLogger('oicp')
 
@@ -237,6 +242,31 @@ class ClientStore(object):
 
     async def get_client_by_access_token(self, access_token: str) -> Union[Client, None]:
         raise NotImplementedError()
+
+    async def auth_client_registration(self, request: sanic.request.Request) -> bool:
+        if 'authorization' not in request.headers:
+            logger.warning('Client attempted registration without authorization header')
+            return False
+
+        hdr = request.headers['authorization']
+        if 'Bearer' not in hdr:
+            logger.warning('Client attempted registration without Bearer token')
+            return False
+
+        token = hdr.split('Bearer')[-1].strip()
+        if self._provider.client_registration_key is None:
+            return True
+        elif isinstance(self._provider.client_registration_key, str) and self._provider.client_registration_key != token:
+            logger.warning('Client attempted registration without incorrect Bearer token {0}'.format(masked(token)))
+            return False
+        elif inspect.iscoroutinefunction(self._provider.client_registration_key) and token != await self._provider.client_registration_key:
+            logger.warning('Client attempted registration without incorrect Bearer token {0}'.format(masked(token)))
+            return False
+
+        return True
+
+
+
 
     async def validate_client(self, id_: str, name: str, secret: str, type_, callback_urls: Tuple[str, ...]) -> Tuple[bool, str]:
         logger.info('Validated client {0} - {1}'.format(id_, name))

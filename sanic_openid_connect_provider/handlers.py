@@ -163,13 +163,22 @@ async def client_register_handler(request: sanic.request.Request) -> sanic.respo
         status = 201
 
     else:
-        client_id = uuid.uuid4().hex[:10].upper()
+        if not provider.open_client_registration and not await provider.clients.auth_client_registration(request):
+            return sanic.response.HTTPResponse(status=403)
+
+        if not request.json or 'redirect_uris' not in request.json:
+            logger.warning('Did not provide any JSON or redirect_uris')
+            result = {'error': 'invalid_client_metadata', 'error_description': 'Invalid metadata'}
+            return sanic.response.json(result, status=400)
+
+        client_id = uuid.uuid4().hex[:16]
         client_name = request.json.get('client_name', client_id)
         client_secret = uuid.uuid4().hex
         client_secret_expires_at = 1577858400  # 1st jan 2020
 
         application_type = request.json.get('application_type')
-        response_types = request.json.get('response_types')
+        response_types = request.json.get('response_types', frozenset(['code']))
+        scopes = request.json.get('scope', ['openid'])
         redirect_uris = request.json.get('redirect_uris', [])
         grant_types = request.json.get('grant_types')
         contacts = request.json.get('contacts')
@@ -184,6 +193,9 @@ async def client_register_handler(request: sanic.request.Request) -> sanic.respo
         policy_uri = request.json.get('policy_uri')
         tos_uri = request.json.get('tos_uri')
 
+        if isinstance(scopes, str):
+            scopes = set(scopes.split())
+        scopes.add('openid')
         # TODO request_object_signing_alg
         #
 
@@ -224,6 +236,7 @@ async def client_register_handler(request: sanic.request.Request) -> sanic.respo
             name=client_name,
             type_=subject_type,
             secret=client_secret,
+            scopes=scopes,
             callback_urls=redirect_uris,
             require_consent=require_consent,
             reuse_consent=reuse_consent,

@@ -24,12 +24,15 @@ session = Session(app, interface=InMemorySessionInterface())
 jinja = SanicJinja2(app, loader=FileSystemLoader('./templates'), enable_async=True)
 
 res_dir = os.path.join(os.path.dirname(__file__), 'resources')
+
 oicp_provider = setup(
     app=app,
     private_keys=[os.path.join(res_dir, 'ec.pem'), os.path.join(res_dir, 'rsa.pem')],
     client_manager_class=DynamoDBClientStore,
     token_manager_class=RedisTokenStore,
-    code_manager_class=RedisCodeStore
+    code_manager_class=RedisCodeStore,
+    open_client_registration=False,
+    client_registration_key='fefe7676-a451-4255-8d05-c435c9cfa9c8'
 )
 
 #

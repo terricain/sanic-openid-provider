@@ -16,6 +16,15 @@ if TYPE_CHECKING:
 logger = logging.getLogger('oicp')
 
 
+def get_request_url(request: sanic.request.Request) -> str:
+    url = request.url
+    scheme = get_scheme(request)
+    if not url.startswith(scheme + ':'):
+        url = scheme + ':' + url.split(':', 1)[-1]
+
+    return url
+
+
 async def create_authorize_response_params(request: sanic.request.Request, params: Dict[str, Any], user: Dict[str, Any]) -> Tuple[dict, dict]:
     provider = get_provider(request)
     client = params['client']
@@ -230,7 +239,7 @@ async def authorize_handler(request: sanic.request.Request) -> sanic.response.Ba
                 else:
                     # If login is in prompt arg
                     request['session'].clear()
-                    next_page = strip_prompt_login(request.url)
+                    next_page = strip_prompt_login(get_request_url(request))
                     return redirect(request.app.url_for(provider.login_function_name, next=next_page))
 
             if 'select_account' in params['prompt']:
@@ -239,7 +248,7 @@ async def authorize_handler(request: sanic.request.Request) -> sanic.response.Ba
                     raise AuthorizeError(params['redirect_uri'], 'account_selection_required', params['grant_type'])
                 else:
                     request['session'].clear()
-                    return redirect(request.app.url_for(provider.login_function_name, next=request.url))
+                    return redirect(request.app.url_for(provider.login_function_name, next=get_request_url(request)))
 
             if {'none', 'consent'} <= params['prompt']:  # Tests if both none and consent in prompt
                 logger.warning('consent prompt along with none prompt')
@@ -341,11 +350,11 @@ async def authorize_handler(request: sanic.request.Request) -> sanic.response.Ba
 
             if 'login' in params['prompt']:
                 # Can prompt, redirect them to login page
-                next_page = strip_prompt_login(request.url)
+                next_page = strip_prompt_login(get_request_url(request))
                 return redirect(request.app.url_for(provider.login_function_name, next=next_page))
 
             # Nothing in prompt, so default to redirecting to login page
-            return redirect(request.app.url_for(provider.login_function_name, next=request.url))
+            return redirect(request.app.url_for(provider.login_function_name, next=get_request_url(request)))
 
     except (ClientIdError, RedirectUriError) as err:
 

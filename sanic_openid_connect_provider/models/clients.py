@@ -89,13 +89,16 @@ class Client(object):
 
             for key in jwk_set:
                 if key.key_type == 'EC':
-                    payload = jwt.encode(
-                        payload=payload,
-                        key=key.export_to_pem(private_key=True, password=None),
-                        algorithm='ES256',
-                        headers={'kid': key.key_id}
-                    )
-                    break
+                    try:
+                        payload = jwt.encode(
+                            payload=payload,
+                            key=key.export_to_pem(private_key=True, password=None),
+                            algorithm='ES256',
+                            headers={'kid': key.key_id}
+                        )
+                        break
+                    except jwcrypto.jwk.InvalidJWKType:
+                        continue
             else:
                 raise RuntimeError('No EC Keys')
 
@@ -105,13 +108,16 @@ class Client(object):
 
             for key in jwk_set:
                 if key.key_type == 'RSA':
-                    payload = jwt.encode(
-                        payload=payload,
-                        key=key.export_to_pem(private_key=True, password=None),
-                        algorithm='RS256',
-                        headers={'kid': key.key_id}
-                    )
-                    break
+                    try:
+                        payload = jwt.encode(
+                            payload=payload,
+                            key=key.export_to_pem(private_key=True, password=None),
+                            algorithm='RS256',
+                            headers={'kid': key.key_id}
+                        )
+                        break
+                    except jwcrypto.jwk.InvalidJWKType:
+                        continue
             else:
                 raise RuntimeError('No RSA Keys')
 

@@ -90,7 +90,7 @@ class UserManager(object):
             if item:
                 result.append(item)
 
-        return item
+        return result
 
     @classmethod
     def clean_dict(cls, dirty_dict: Dict[str, Any]) -> Dict[str, Any]:

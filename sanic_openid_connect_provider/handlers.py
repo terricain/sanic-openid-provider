@@ -67,17 +67,37 @@ async def well_known_finger_handler(request: sanic.request.Request) -> sanic.res
 
 
 async def jwk_handler(request: sanic.request.Request) -> sanic.response.BaseHTTPResponse:
+    headers = {
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Methods': 'GET, OPTIONS'
+    }
+
+    if request.method == 'OPTIONS':
+        return sanic.response.HTTPResponse(headers=headers)
+
     provider = get_provider(request)
     keys = []
 
-    # TODO look into JWK repository
     for key in provider.jwk_set:
         keys.append(key._public_params())  # so we dont get json strings
+
+    async for client in provider.clients.all():
+        for key in client.jwk:
+            keys.append(key._public_params())  # so we dont get json strings
 
     return sanic.response.json({'keys': keys})
 
 
 async def userinfo_handler(request: sanic.request.Request) -> sanic.response.BaseHTTPResponse:
+    headers = {
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Headers': 'Authorization',
+        'Access-Control-Allow-Methods': 'GET, POST, OPTIONS'
+    }
+
+    if request.method == 'OPTIONS':
+        return sanic.response.HTTPResponse(headers=headers)
+
     provider = get_provider(request)
 
     try:
@@ -111,16 +131,17 @@ async def userinfo_handler(request: sanic.request.Request) -> sanic.response.Bas
                                               jwk_set=None)
 
         if isinstance(result, str):
+            headers.update({'Cache-Control': 'no-store', 'Pragma': 'no-cache', 'Content-Type': 'application/jwt'})
+
             # If we no longer have plain json, its most likely a JWT of sorts
-            return sanic.response.HTTPResponse(body=result, headers={'Cache-Control': 'no-store',
-                                                                     'Pragma': 'no-cache',
-                                                                     'Content-Type': 'application/jwt'})
+            return sanic.response.HTTPResponse(body=result, headers=headers)
         else:
-            return sanic.response.json(result, headers={'Cache-Control': 'no-store',
-                                                        'Pragma': 'no-cache'})
+            headers.update({'Cache-Control': 'no-store', 'Pragma': 'no-cache'})
+
+            return sanic.response.json(result, headers=headers)
 
     except TokenError as error:
-        return sanic.response.json(error.create_dict(), status=400)
+        return sanic.response.json(error.create_dict(), status=400, headers=headers)
 
 
 async def client_register_handler(request: sanic.request.Request) -> sanic.response.BaseHTTPResponse:

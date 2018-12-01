@@ -46,8 +46,8 @@ def setup(app: sanic.Sanic,
 
     app.add_route(well_known_config_handler, wellknown_config_path, frozenset({'GET'}))
     app.add_route(well_known_finger_handler, wellknown_finger_path, frozenset({'GET'}))
-    app.add_route(jwk_handler, jwk_path, frozenset({'GET'}))
-    app.add_route(userinfo_handler, userinfo_path, frozenset({'GET', 'POST'}))
+    app.add_route(jwk_handler, jwk_path, frozenset({'GET', 'OPTIONS'}))
+    app.add_route(userinfo_handler, userinfo_path, frozenset({'GET', 'POST', 'OPTIONS'}))
     app.add_route(token_handler, token_path, frozenset({'POST'}))
     app.add_route(authorize_handler, authorize_path, frozenset({'GET', 'POST'}))
     app.add_route(client_register_handler, client_register_path, frozenset({'GET', 'POST'}))

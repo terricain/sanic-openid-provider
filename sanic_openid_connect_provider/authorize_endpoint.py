@@ -153,6 +153,10 @@ async def validate_authorize_params(request: sanic.request.Request, provider: 'P
 
     # Check response_type is allowed
     response_type = req_dict.get('response_type')
+    # Sort them so they're always in order
+    if response_type:
+        response_type = ' '.join(sorted(response_type.split(' ')))
+
     if response_type in ('code',):
         grant_type = 'authorization_code'
     elif response_type in ('id_token', 'id_token token', 'token'):

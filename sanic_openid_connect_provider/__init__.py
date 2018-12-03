@@ -1,5 +1,5 @@
 import logging
-from typing import Union, Type, List, Awaitable
+from typing import Union, Type, List, Awaitable, Optional
 
 import sanic.request
 
@@ -12,6 +12,7 @@ from sanic_openid_connect_provider.models.users import UserManager
 from sanic_openid_connect_provider.provider import Provider
 from sanic_openid_connect_provider.token_endpoint import token_handler
 from sanic_openid_connect_provider.utils import masked
+from sanic_openid_connect_provider.client import Client
 
 try:
     from sanic_openid_connect_provider.version import version as __version__
@@ -22,7 +23,58 @@ except ImportError:
 logger = logging.getLogger('oicp')
 
 
-def setup(app: sanic.Sanic,
+def setup_client(app: sanic.Sanic,
+                 client_id: str,
+                 client_secret: str,
+                 signature_type: str,
+                 callback_path: str='/callback',
+                 autodiscover_base: Optional[str]=None,
+                 token_url: Optional[str]=None,
+                 authorize_url: Optional[str]=None,
+                 userinfo_url: Optional[str]=None,
+                 jwk_url: Optional[str]=None,
+                 access_userinfo: bool=False,
+                 scopes=('openid',)) -> Client:
+    if autodiscover_base is None and token_url is None:
+        raise RuntimeError('Autodiscover is disabled and no token url provided')
+    if autodiscover_base is None and authorize_url is None:
+        raise RuntimeError('Autodiscover is disabled and no authorize url provided')
+    if autodiscover_base is None and userinfo_url is None and access_userinfo:
+        raise RuntimeError('Autodiscover is disabled, no userinfo url provided and access_userinfo is set to True')
+    if autodiscover_base is None and jwk_url is None:
+        raise RuntimeError('Autodiscover is disabled and no JWK url provided, cannot validate requests')
+    if signature_type not in ('HS256', 'RS256', 'ES256'):
+        raise RuntimeError('Signature type not one of HS256, RS256, ES256')
+
+    # Check that sessions has been initiated first
+    if not hasattr(app, 'extensions'):
+        app.extensions = {}
+
+    if 'session' not in app.extensions:
+        raise RuntimeError('sanic sessions have not been set up')
+
+    client_obj = Client(
+        client_id=client_id,
+        client_secret=client_secret,
+        signature_type=signature_type,
+        callback_path=callback_path,
+        autodiscover_base=autodiscover_base,
+        token_url=token_url,
+        authorize_url=authorize_url,
+        userinfo_url=userinfo_url,
+        jwk_url=jwk_url,
+        access_userinfo=access_userinfo,
+        scopes=scopes
+    )
+
+    app.add_route(client_obj.handle_callback, callback_path, frozenset({'GET', 'POST'}))
+
+    app.config['oicp_client'] = client_obj
+
+    return client_obj
+
+
+def setup_provider(app: sanic.Sanic,
           wellknown_config_path: str='/.well-known/openid-configuration',
           wellknown_finger_path: str='/.well-known/webfinger',
           jwk_path: str='/sso/oidc/jwk',

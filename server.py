@@ -9,7 +9,7 @@ from sanic_jinja2 import SanicJinja2
 from sanic_session import Session, InMemorySessionInterface
 from jinja2 import FileSystemLoader
 
-from sanic_openid_connect_provider import setup
+from sanic_openid_connect_provider import setup_provider
 
 from sanic_openid_connect_provider.models.clients import DynamoDBClientStore
 from sanic_openid_connect_provider.models.token import RedisTokenStore
@@ -25,7 +25,7 @@ jinja = SanicJinja2(app, loader=FileSystemLoader('./templates'), enable_async=Tr
 
 res_dir = os.path.join(os.path.dirname(__file__), 'resources')
 
-oicp_provider = setup(
+oicp_provider = setup_provider(
     app=app,
     private_keys=[os.path.join(res_dir, 'ec.pem'), os.path.join(res_dir, 'rsa.pem')],
     client_manager_class=DynamoDBClientStore,
@@ -149,7 +149,8 @@ async def startup(app, loop):
             "https://op.certification.openid.net:60407/authz_post",
             'https://testjenkins.ficoccs-prod.net/securityRealm/finishLogin',
             'http://127.0.0.1:3000/cb1',
-            'http://127.0.0.1:3000/callback'
+            'http://127.0.0.1:3000/callback',
+            'http://localhost:8006/callback'
         ),
         response_types=('code',),
         jwt_algo='ES256',

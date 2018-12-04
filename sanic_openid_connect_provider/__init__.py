@@ -1,3 +1,4 @@
+import os
 import logging
 from typing import Union, Type, List, Awaitable, Optional
 
@@ -88,8 +89,23 @@ def setup_provider(app: sanic.Sanic,
           user_manager_class: Union[Type[UserManager], UserManager]=UserManager,
           client_manager_class: Union[Type[ClientStore], ClientStore]=InMemoryClientStore,
           code_manager_class: Union[Type[CodeStore], CodeStore]=InMemoryCodeStore,
-          token_manager_class: Union[Type[TokenStore], TokenStore]=InMemoryTokenStore
+          token_manager_class: Union[Type[TokenStore], TokenStore]=InMemoryTokenStore,
+
+          error_html: str = 'error.html',
+          autosubmit_html: str = 'form-autosubmit.html',
+          hidden_inputs_html: str = 'hidden_inputs.html',
+          authorize_html: str = 'authorize.html'
           ) -> Provider:
+
+    # Add our templates to the default searchpath
+    if not hasattr(app, 'extensions'):
+        app.extensions = {}
+
+    if 'jinja2' not in app.extensions:
+        raise RuntimeError('jinja2 has not been set up')
+
+    default_template_location = os.path.join(os.path.dirname(__file__), 'templates')
+    app.extensions['jinja2'].env.loader.searchpath.append(default_template_location)
 
     app.add_route(well_known_config_handler, wellknown_config_path, frozenset({'GET'}))
     app.add_route(well_known_finger_handler, wellknown_finger_path, frozenset({'GET'}))
@@ -112,16 +128,13 @@ def setup_provider(app: sanic.Sanic,
         allow_grant_type_password=grant_type_password,
         open_client_registration=open_client_registration,
         client_registration_key=client_registration_key,
+
+        error_html=error_html,
+        autosubmit_html=autosubmit_html,
+        hidden_inputs_html=hidden_inputs_html,
+        authorize_html=authorize_html
     )
     app.config['oicp_provider'].load_keys(private_keys)
 
     return app.config['oicp_provider']
 
-    # app.config['oicp_user'] = user_manager_class()
-    # app.config['oicp_code'] = InMemoryCodeStore()
-    # app.config['oicp_client'] = InMemoryClientStore()
-    # app.config['oicp_token'] = InMemoryTokenStore()
-    # app.config['oicp_login_funcname'] = login_funcname
-    # app.config['oicp_token_expire'] = token_expire
-    # app.config['oicp_code_expire'] = code_expire
-    # app.config['oicp_grant_type_password'] = grant_type_password

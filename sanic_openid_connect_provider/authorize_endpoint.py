@@ -270,7 +270,7 @@ async def authorize_handler(request: sanic.request.Request) -> sanic.response.Ba
                 if params['response_mode'] == 'form_post':
                     # We've been requested to auto-post form data
                     logger.info('skipped consent, doing form-autosubmit for {0}'.format(params['client'].name))
-                    return await request.app.extensions['jinja2'].render_async('form-autosubmit.html',
+                    return await request.app.extensions['jinja2'].render_async(provider.autosubmit_html,
                                                                                request,
                                                                                form_url=params['redirect_uri'],
                                                                                query_params=query_params,
@@ -290,7 +290,7 @@ async def authorize_handler(request: sanic.request.Request) -> sanic.response.Ba
                     if params['response_mode'] == 'form_post':
                         # We've been requested to auto-post form data
                         logger.info('reusing consent, doing form-autosubmit for {0}'.format(params['client'].name))
-                        return await request.app.extensions['jinja2'].render_async('form-autosubmit.html',
+                        return await request.app.extensions['jinja2'].render_async(provider.autosubmit_html,
                                                                                    request,
                                                                                    form_url=params['redirect_uri'],
                                                                                    query_params=query_params,
@@ -324,7 +324,7 @@ async def authorize_handler(request: sanic.request.Request) -> sanic.response.Ba
                 hidden_params['response_mode'] = params['response_mode']
             if params['max_age']:
                 hidden_params['max_age'] = params['max_age']
-            hidden_inputs = await request.app.extensions['jinja2'].render_string_async('hidden_inputs.html', request, params=hidden_params)
+            hidden_inputs = await request.app.extensions['jinja2'].render_string_async(provider.hidden_inputs_html, request, params=hidden_params)
 
             # Remove `openid` from scope list since we don't need to print it.
             try:
@@ -341,7 +341,7 @@ async def authorize_handler(request: sanic.request.Request) -> sanic.response.Ba
 
             # Show authorize html page #TODO allow it to be customised
             logger.info('showing consent for {0}'.format(params['client'].name))
-            return await request.app.extensions['jinja2'].render_async('authorize.html', request, **context)
+            return await request.app.extensions['jinja2'].render_async(provider.authorize_html, request, **context)
 
         else:
             # Not logged in
@@ -363,7 +363,7 @@ async def authorize_handler(request: sanic.request.Request) -> sanic.response.Ba
     except (ClientIdError, RedirectUriError) as err:
 
         context = {'error': err.error, 'description': err.description}
-        return await request.app.extensions['jinja2'].render_async('error.html', request, **context)
+        return await request.app.extensions['jinja2'].render_async(provider.error_html, request, **context)
 
     except AuthorizeError as err:
 
@@ -377,7 +377,7 @@ async def authorize_handler(request: sanic.request.Request) -> sanic.response.Ba
 
         if response_mode == 'form_post':
             return await request.app.extensions['jinja2'].render_async(
-                'form-autosubmit.html',
+                provider.autosubmit_html,
                 request,
                 form_url=err.redirect_uri,
                 query_params={'error': err.error, 'error_description': err.description},

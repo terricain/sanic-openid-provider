@@ -27,6 +27,11 @@ class Provider(object):
                  allow_grant_type_password: bool=False,
                  open_client_registration: bool = True,
                  client_registration_key: Union[str, None, Coroutine[str, None, bool]] = None,
+
+                 error_html: str = 'error.html',
+                 autosubmit_html: str = 'form-autosubmit.html',
+                 hidden_inputs_html: str = 'hidden_inputs.html',
+                 authorize_html: str = 'authorize.html'
                  ):
 
         self.jwk_set = jwcrypto.jwk.JWKSet()
@@ -43,6 +48,11 @@ class Provider(object):
         self.allow_grant_type_password = allow_grant_type_password
         self.open_client_registration = open_client_registration
         self.client_registration_key = client_registration_key
+
+        self.error_html = error_html
+        self.autosubmit_html = autosubmit_html
+        self.hidden_inputs_html = hidden_inputs_html
+        self.authorize_html = authorize_html
 
     async def setup(self):
         await self.users.setup()

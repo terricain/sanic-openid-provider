@@ -1,0 +1,1 @@
+sanic_openid_connect_provider

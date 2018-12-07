@@ -35,10 +35,9 @@ setup(
     name='sanic_openid_connect_provider',
 
     use_scm_version={
-        'tag_regex': r'^(?P<prefix>v)?(?P<version>[^\+]+)(?P<suffix>.*)?$',
-	'write_to': 'sanic_openid_connect_provider/version.py'
+        'tag_regex': r'^(?P<prefix>v)?(?P<version>[^\+]+)$',
+        'write_to': 'sanic_openid_connect_provider/version.py'
     },
-
     description="OpenID Provider framework for sanic",
     long_description=readme,
     author="Terry Cain",

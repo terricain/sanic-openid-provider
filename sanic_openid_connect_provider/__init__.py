@@ -46,12 +46,7 @@ def setup_client(app: sanic.Sanic,
     if signature_type not in ('HS256', 'RS256', 'ES256'):
         raise RuntimeError('Signature type not one of HS256, RS256, ES256')
 
-    # Check that sessions has been initiated first
-    if not hasattr(app, 'extensions'):
-        app.extensions = {}
-
-    if 'session' not in app.extensions:
-        raise RuntimeError('sanic sessions have not been set up')
+    # Cant check sessions is set up as they may be done in a server_startup function, so we just expect them to be there.
 
     client_obj = Client(
         client_id=client_id,

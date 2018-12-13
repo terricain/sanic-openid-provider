@@ -104,46 +104,141 @@ app.js
 
 .. code:: javascript
 
-    const express = require('express')
+    /*
+    *
+    * Note: This example is a "full" example that registers a new client with the OIDC server each time. This returns a client ID and secret. 
+    *       In reality, you should only register once per service and then save the client information for future use.      
+    *       I would advise using this script to register your client and test it - It will console.log the ID and secret which you can then hardcode:
+    *       https://github.com/panva/node-openid-client#manually-recommended
+    *
+    *   In production, I import a modified version of this script with promise support. Make sure it's finished discovery before defining your 
+    *   error handlers!
+    */
+
+    //******* Config
+    const config = {
+        /* jshint ignore:start */
+        //Server we're going to auth with
+        authServer: "https://authserver",
+        //Access token provided by admin for initial registration
+        initialAccessToken: "dcb89d4c-fec4-11e8-8eb2-f2801f1b9fd1",
+        //Listen port
+        port: 3000,
+        //All the settings required to register our client
+        registration: {
+            //IDP prefers ES256 encryption
+            id_token_signed_response_alg: 'ES256',
+            //Array of all potential redirect URI's
+            redirect_uris: ["http://127.0.0.1:3000/callback", "http://127.0.0.1/callback"],
+            //String space-delimited list of all potentially required scopes
+            scope: "openid email profile",
+            grant_types: ['authorization_code'],
+            application_type: 'web',
+            //Name of client - For reference only
+            client_name: 'Some client',
+            subject_type: 'public',
+            response_types: ["code"]
+        },
+        auth: {
+            //uri the IDP redirects to after authentication - Must be in the array above
+            redirect_uri: "http://127.0.0.1:3000/callback",
+            //Scopes we want for authentication
+            scope: "openid email profile",
+            id_token_signed_response_alg: 'ES256'
+        }
+        /* jshint ignore:end */
+    }
+
+    //******* End Config
+
+
+    const { Issuer } = require('openid-client');
+    const { Strategy } = require('openid-client');
     const session = require('express-session');
-    const OICStrategy = require('passport-openid-connect').Strategy;
-    const app = express()
+    const express = require('express');
+    const app = express();
     const passport = require('passport');
 
-    const port = 3000
-
+    // Set up Express sessions in memory - Please don't do this in production, use something to store your sessions
+    // so we can load balance. 
     app.use(session({
-        secret: 'words',
+        secret: 'asupersecretpassword',
         resave: true,
         saveUninitialized: true
     }));
+    //Make sure to initialise before we start discovery
     app.use(passport.initialize());
     app.use(passport.session());
 
-    const oic = new OICStrategy({
-      "issuerHost": "http://9765fb31.ngrok.io",
-      "client_id": "kbyuFDidLLm280LIwVFiazOqjO3ty8KH",
-      "client_secret": "60Op4HFM0I8ajz0WdiStAbziZ-VFQttXuxixHHs2R7r7-CW8GR79l-mmLqMhc-Sa",
-      "redirect_uri": "http://127.0.0.1:3000/callback",
-      "scope": "openid email profile"
-    });
+    //Discover settings from OID server
+    Issuer.discover(config.authServer)
+        .then(customIssuer => {
 
-    passport.use(oic);
-    passport.serializeUser(OICStrategy.serializeUser);
-    passport.deserializeUser(OICStrategy.deserializeUser);
+            const opts = { initialAccessToken: config.initialAccessToken };
+            const metadata = config.registration;
 
-    app.get('/login', passport.authenticate('passport-openid-connect', {"successReturnToOrRedirect": "/"}))
-    app.get('/callback', passport.authenticate('passport-openid-connect', {"callback": true, "successReturnToOrRedirect": "/"}))
+            // You only need to do client registration once (ever) - You should do it during development and then hardcode the client id and secret
+            // Below is an example of a hardcoded client, rather than a client that registers each time
+            // See more in the docs: https://github.com/panva/node-openid-client#manually-recommended
+            
+                // const client = new customIssuer.Client({
+                //         client_id: '83fc3323d3c045a4',
+                //         client_secret: '7f9b5e1721a244c989d011839595b766',
+                //         id_token_signed_response_alg: 'ES256'
+                //     });
+            
+             customIssuer.Client.register(metadata, opts)
+               .then(client => {
+                console.log("!!!!! Save this information for re-use later! !!!!!")
+                console.log("Client ID:     " + client.client_id)
+                console.log("Client Secret: " + client.client_secret)
+                console.log("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+                console.log("Metadata:      " + JSON.stringify(client.metadata, null, 2))
+            
+                const params = config.auth;
+                // Setting up our strategy + validation function
+                passport.use('oidc', new Strategy({client, params, passReqToCallback: null, sessionKey: null, usePKCE: false}, (tokenset, userinfo, done) => {
+                    return done(null, userinfo)
+                }));
+                
+                passport.serializeUser((user, done) => {
+                    // This is where you'd get any extra locally-stored data from the database or something for accessing in req.user
+                    done(null, user);
+                });
 
-    app.get('/', (req, res) => {
-        console.log(req.user)
-        res.json({
-            "hello": "world",
-            "user": req.user
+                passport.deserializeUser((user, done) => {
+                    done(null, user);
+                });
+
+                // GET /login will start authentication
+                app.get('/login', passport.authenticate('oidc'));
+
+                // GET /callback redirected from IDP with code
+                app.get('/callback', passport.authenticate('oidc', {
+                  successRedirect: '/',
+                  failureRedirect: '/login'
+                }));
+
+                // Force every other request to check if user is authed, if not then redirect to /login and start auth
+                app.use((req, res, next) => {
+                    if (!req.user) {
+                        res.redirect('/login');
+                    } else {
+                        next();
+                    }
+                })
+
+                // Example authenticated endpoint
+                app.get('/',(req, res) => {
+                    console.log(`User ${req.user.name} has logged in.`);
+                    res.send(req.user);
+                })
+
+
+                app.listen(config.port, () => console.log(`Example app listening on port ${config.port}!`))
+
+            });
         })
-    })
-
-    app.listen(port, () => console.log(`Example OpenID Connect app listening on port ${port}!`))
 
 
 package.json

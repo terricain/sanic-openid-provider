@@ -137,11 +137,11 @@ class Client(object):
                     json_data = await resp.json()
 
             if 'error' in json_data:
-                #TODO deal with error
-                raise NotImplementedError('some err')
+                logger.error('OpenID Connect error. {0}'.format(json_data))
+                return sanic.response.text('Failed to get SSO token')
 
             access_token = json_data['access_token']
-            refresh_token = json_data['refresh_token']
+            refresh_token = json_data.get('refresh_token')
             id_token = json_data['id_token']
 
             jwt_header = jwt.get_unverified_header(id_token)

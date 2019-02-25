@@ -22,7 +22,7 @@ class Client(object):
                  client_id: str,
                  client_secret: str,
                  signature_type: str,
-                 callback_path: str='/callback',
+                 callback_path: str = '/callback',
                  autodiscover_base: Optional[str] = None,
                  token_url: Optional[str] = None,
                  authorize_url: Optional[str] = None,

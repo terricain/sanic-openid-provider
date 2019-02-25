@@ -9,17 +9,20 @@ with open('README.rst') as readme_file:
     readme = readme_file.read()
 
 requirements = [
-    'sanic==0.8.3',
-    'PyJWT==1.6.4',
-    'jwcrypto==0.6.0',
-    'aioboto3==5.0.0',
-    'aiohttp==3.4.4',
-    'aioredis==1.2.0'
+    'sanic>=0.8.3',
+    'PyJWT>=1.6.4',
+    'jwcrypto>=0.6.0',
+    'aiohttp>=3.4.4',
 ]
 
 setup_requirements = [
     'setuptools_scm>=3.1.0'
 ]
+
+extras_require = {
+    'aws': ['aioboto3>=6.1.0'],
+    'redis': ['aioredis>=1.2.0']
+}
 
 # test_requirements = [
 #     'pytest',
@@ -60,4 +63,5 @@ setup(
     test_suite='tests',
     tests_require=[],
     setup_requires=setup_requirements,
+    extras_require=extras_require
 )

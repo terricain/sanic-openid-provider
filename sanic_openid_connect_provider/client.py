@@ -4,7 +4,7 @@ import urllib.parse
 import datetime
 import os
 from functools import wraps
-from typing import Optional, List
+from typing import Optional, List, Callable, Awaitable, Dict, Any
 
 import aiohttp
 import jwt
@@ -29,7 +29,8 @@ class Client(object):
                  userinfo_url: Optional[str] = None,
                  jwk_url: Optional[str] = None,
                  access_userinfo: bool = False,
-                 scopes: List = ('openid',)
+                 scopes: List = ('openid',),
+                 post_logon_callback: Optional[Callable[[Dict[str, Any]], Awaitable[None]]] = None
                  ):
         self.id = client_id
         self.secret = client_secret
@@ -50,6 +51,7 @@ class Client(object):
         self.access_userinfo = access_userinfo
         self.scopes = list(scopes)
         self.scopes.sort()
+        self.post_logon_callback = post_logon_callback
 
         self.jwk_cache = jwcrypto.jwk.JWKSet()
 
@@ -175,6 +177,9 @@ class Client(object):
             request['session']['user']['access_token'] = access_token
             request['session']['user']['refresh_token'] = refresh_token
             logger.info('Got valid json token, user authenticated')
+
+            if self.post_logon_callback:
+                await self.post_logon_callback(request['session'])
 
             next_url = request['session']['oicp_redirect']
             del request['session']['oicp_redirect']

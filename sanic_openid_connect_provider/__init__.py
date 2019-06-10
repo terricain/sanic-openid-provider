@@ -1,6 +1,6 @@
 import os
 import logging
-from typing import Union, Type, List, Awaitable, Optional
+from typing import Union, Type, List, Awaitable, Optional, Callable, Any, Dict
 
 import sanic.request
 
@@ -28,14 +28,15 @@ def setup_client(app: sanic.Sanic,
                  client_id: str,
                  client_secret: str,
                  signature_type: str,
-                 callback_path: str='/callback',
-                 autodiscover_base: Optional[str]=None,
-                 token_url: Optional[str]=None,
-                 authorize_url: Optional[str]=None,
-                 userinfo_url: Optional[str]=None,
-                 jwk_url: Optional[str]=None,
-                 access_userinfo: bool=False,
-                 scopes=('openid',)) -> Client:
+                 callback_path: str = '/callback',
+                 autodiscover_base: Optional[str] = None,
+                 token_url: Optional[str] = None,
+                 authorize_url: Optional[str] = None,
+                 userinfo_url: Optional[str] = None,
+                 jwk_url: Optional[str] = None,
+                 access_userinfo: bool = False,
+                 scopes=('openid',),
+                 post_logon_callback: Optional[Callable[[Dict[str, Any]], Awaitable[None]]] = None) -> Client:
     if autodiscover_base is None and token_url is None:
         raise RuntimeError('Autodiscover is disabled and no token url provided')
     if autodiscover_base is None and authorize_url is None:
@@ -60,7 +61,8 @@ def setup_client(app: sanic.Sanic,
         userinfo_url=userinfo_url,
         jwk_url=jwk_url,
         access_userinfo=access_userinfo,
-        scopes=scopes
+        scopes=scopes,
+        post_logon_callback=post_logon_callback
     )
 
     app.add_route(client_obj.handle_callback, callback_path, frozenset({'GET', 'POST'}))
@@ -71,31 +73,31 @@ def setup_client(app: sanic.Sanic,
 
 
 def setup_provider(app: sanic.Sanic,
-          wellknown_config_path: str='/.well-known/openid-configuration',
-          wellknown_finger_path: str='/.well-known/webfinger',
-          jwk_path: str='/sso/oidc/jwk',
-          userinfo_path: str='/sso/oidc/userinfo',
-          token_path: str='/sso/oidc/token',
-          authorize_path: str='/sso/oidc/authorize',
-          client_register_path: str='/sso/oidc/client_register',
-          login_funcname='login',
-          token_expire: int=86400,
-          code_expire: int=86400,
-          grant_type_password: bool=False,
-          private_keys: List[str]=None,
-          open_client_registration: bool=True,
-          client_registration_key: Union[str, None, Awaitable[bool]]=None,
+                   wellknown_config_path: str = '/.well-known/openid-configuration',
+                   wellknown_finger_path: str = '/.well-known/webfinger',
+                   jwk_path: str = '/sso/oidc/jwk',
+                   userinfo_path: str = '/sso/oidc/userinfo',
+                   token_path: str = '/sso/oidc/token',
+                   authorize_path: str = '/sso/oidc/authorize',
+                   client_register_path: str = '/sso/oidc/client_register',
+                   login_funcname: str = 'login',
+                   token_expire: int = 86400,
+                   code_expire: int = 86400,
+                   grant_type_password: bool = False,
+                   private_keys: List[str] = None,
+                   open_client_registration: bool = True,
+                   client_registration_key: Union[str, None, Awaitable[bool]] = None,
 
-          user_manager_class: Union[Type[UserManager], UserManager]=UserManager,
-          client_manager_class: Union[Type[ClientStore], ClientStore]=InMemoryClientStore,
-          code_manager_class: Union[Type[CodeStore], CodeStore]=InMemoryCodeStore,
-          token_manager_class: Union[Type[TokenStore], TokenStore]=InMemoryTokenStore,
+                   user_manager_class: Union[Type[UserManager], UserManager] = UserManager,
+                   client_manager_class: Union[Type[ClientStore], ClientStore] = InMemoryClientStore,
+                   code_manager_class: Union[Type[CodeStore], CodeStore] = InMemoryCodeStore,
+                   token_manager_class: Union[Type[TokenStore], TokenStore] = InMemoryTokenStore,
 
-          error_html: str = 'error.html',
-          autosubmit_html: str = 'form-autosubmit.html',
-          hidden_inputs_html: str = 'hidden_inputs.html',
-          authorize_html: str = 'authorize.html'
-          ) -> Provider:
+                   error_html: str = 'error.html',
+                   autosubmit_html: str = 'form-autosubmit.html',
+                   hidden_inputs_html: str = 'hidden_inputs.html',
+                   authorize_html: str = 'authorize.html'
+                   ) -> Provider:
 
     # Add our templates to the default searchpath
     if not hasattr(app, 'extensions'):
@@ -137,4 +139,3 @@ def setup_provider(app: sanic.Sanic,
     app.config['oicp_provider'].load_keys(private_keys)
 
     return app.config['oicp_provider']
-

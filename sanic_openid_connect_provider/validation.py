@@ -22,7 +22,7 @@ async def validate_userinfo_params(request: Request) -> Dict[str, Any]:
         else:
             raise NotImplementedError(hdr)
 
-    if 'access_token' in req_dict:
+    elif 'access_token' in req_dict:
         access_token = req_dict.get('access_token')
 
     if not access_token:

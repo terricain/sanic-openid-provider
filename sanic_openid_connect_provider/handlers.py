@@ -8,6 +8,7 @@ import sanic.response
 from sanic_openid_connect_provider.models.clients import Client
 from sanic_openid_connect_provider.utils import get_scheme
 from sanic_openid_connect_provider.validation import *
+from sanic_openid_connect_provider.models.users import SCOPES
 
 logger = logging.getLogger('oicp')
 
@@ -41,7 +42,8 @@ async def well_known_config_handler(request: sanic.request.Request) -> sanic.res
         ],
 
         'claims_supported': ['name', 'family_name', 'given_name', 'middle_name', 'nickname', 'preferred_username', 'profile', 'picture', 'website', 'gender', 'birthdate', 'zoneinfo', 'locale', 'updated_at', 'email', 'email_verified', 'address', 'phone_number', 'phone_number_verified'],
-        'grant_types_supported': ['authorization_code', 'implicit', 'refresh_token', 'password', 'client_credentials']
+        'grant_types_supported': ['authorization_code', 'implicit', 'refresh_token', 'password', 'client_credentials'],
+        'scopes_supported': list(SCOPES.keys())
     }
     return sanic.response.json(response, headers={'Access-Control-Allow-Origin': '*'})
 

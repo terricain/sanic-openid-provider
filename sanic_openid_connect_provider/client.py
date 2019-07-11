@@ -229,3 +229,17 @@ class Client(object):
 
             return decorated_function
         return decorator
+
+    def login_required_api(self):
+        def decorator(f):
+            @wraps(f)
+            async def decorated_function(request: sanic.request, *args, **kwargs) -> sanic.response.BaseHTTPResponse:
+                if 'user' in request['session']:
+                    if request['session']['user']['expires_at'] > datetime.datetime.now().timestamp():
+                        response = await f(request, *args, **kwargs)
+                        return response
+
+                return sanic.response.json({}, status=403)
+
+            return decorated_function
+        return decorator

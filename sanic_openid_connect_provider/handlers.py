@@ -13,7 +13,41 @@ from sanic_openid_connect_provider.models.users import SCOPES
 logger = logging.getLogger('oicp')
 
 
-async def well_known_config_handler(request: sanic.request.Request) -> sanic.response.BaseHTTPResponse:
+async def well_known_oauth_config_handler(request: sanic.request.Request) -> sanic.response.BaseHTTPResponse:
+    scheme = get_scheme(request)
+
+    response = {
+        'issuer': '{0}://{1}'.format(scheme, request.host),
+        'authorization_endpoint': request.app.url_for('authorize_handler', _scheme=scheme, _external=True, _server=request.host),
+        'token_endpoint': request.app.url_for('token_handler', _scheme=scheme, _external=True, _server=request.host),
+        'jwks_uri': request.app.url_for('jwk_handler', _scheme=scheme, _external=True, _server=request.host),
+        'registration_endpoint': request.app.url_for('client_register_handler', _scheme=scheme, _external=True, _server=request.host),
+        'scopes_supported': list(SCOPES.keys()),
+        'response_types_supported': ['code', 'id_token', 'id_token token', 'code token', 'code id_token', 'code id_token token'],
+        'grant_types_supported': ['authorization_code', 'implicit', 'refresh_token', 'password', 'client_credentials'],
+        'token_endpoint_auth_methods_supported': [
+            'client_secret_post',
+            'client_secret_basic',
+            'private_key_jwt',
+            'client_secret_jwt',
+            'none'
+        ],
+        'token_endpoint_auth_signing_alg_values_supported': ['HS256', 'RS256', 'ES256'],
+        'introspection_endpoint': request.app.url_for('introspection_handler', _scheme=scheme, _external=True, _server=request.host),
+        'introspection_endpoint_auth_methods_supported': [
+            'client_secret_post',
+            'client_secret_basic',
+            'private_key_jwt',
+            'client_secret_jwt',
+            'none'
+        ],
+        'code_challenge_methods_supported': ['S256']
+
+    }
+    return sanic.response.json(response, headers={'Access-Control-Allow-Origin': '*'})
+
+
+async def well_known_openid_config_handler(request: sanic.request.Request) -> sanic.response.BaseHTTPResponse:
     scheme = get_scheme(request)
 
     response = {
@@ -24,9 +58,6 @@ async def well_known_config_handler(request: sanic.request.Request) -> sanic.res
         'jwks_uri': request.app.url_for('jwk_handler', _scheme=scheme, _external=True, _server=request.host),
         'registration_endpoint': request.app.url_for('client_register_handler', _scheme=scheme, _external=True, _server=request.host),
         'login_hint': 'N/A',
-        # TODO 'end_session_endpoint'
-        # TODO 'introspection_endpoint'
-
         # TODO code_challenge_methods_supported
 
         'request_parameter_supported': True,
@@ -88,6 +119,62 @@ async def jwk_handler(request: sanic.request.Request) -> sanic.response.BaseHTTP
             keys.append(key._public_params())  # so we dont get json strings
 
     return sanic.response.json({'keys': keys})
+
+
+async def introspection_handler(request: sanic.request.Request) -> sanic.response.BaseHTTPResponse:
+    headers = {
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Headers': 'Authorization',
+        'Access-Control-Allow-Methods': 'GET, POST, OPTIONS'
+    }
+
+    if request.method == 'OPTIONS':
+        return sanic.response.HTTPResponse(headers=headers)
+
+    provider = get_provider(request)
+
+    try:
+        params = await validate_userinfo_params(request)
+        token = params['token']
+
+        client = await provider.clients.get_client_by_id(token['client'])
+
+        if token.get('specific_claims', {}) is None:
+            specific_claims = {}
+        else:
+            specific_claims = token['specific_claims']
+
+        specific_claims = specific_claims.get('userinfo', {}).keys()
+        claims = await provider.users.get_claims_for_user_by_scope(token['user'], token['scope'], specific_claims)
+
+        result = {
+            'sub': token['user']
+        }
+        result.update(claims)
+
+        if client.userinfo_signed_response_alg:
+            # Sign response
+            result = await client.jws_sign(result, algo=client.userinfo_signed_response_alg, jwk_set=provider.jwk_set)
+
+        if client.userinfo_encrypted_response_alg:
+            # Encrypt response
+            result = await client.jws_encrypt(result,
+                                              alg=client.userinfo_encrypted_response_alg,
+                                              enc=client.userinfo_encrypted_response_enc,
+                                              jwk_set=None)
+
+        if isinstance(result, str):
+            headers.update({'Cache-Control': 'no-store', 'Pragma': 'no-cache', 'Content-Type': 'application/jwt'})
+
+            # If we no longer have plain json, its most likely a JWT of sorts
+            return sanic.response.HTTPResponse(body=result, headers=headers)
+        else:
+            headers.update({'Cache-Control': 'no-store', 'Pragma': 'no-cache'})
+
+            return sanic.response.json(result, headers=headers)
+
+    except TokenError as error:
+        return sanic.response.json(error.create_dict(), status=400, headers=headers)
 
 
 async def userinfo_handler(request: sanic.request.Request) -> sanic.response.BaseHTTPResponse:

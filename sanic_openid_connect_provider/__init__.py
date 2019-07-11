@@ -5,7 +5,8 @@ from typing import Union, Type, List, Awaitable, Optional, Callable, Any, Dict
 import sanic.request
 
 from sanic_openid_connect_provider.authorize_endpoint import authorize_handler
-from sanic_openid_connect_provider.handlers import well_known_config_handler, well_known_finger_handler, jwk_handler, userinfo_handler, client_register_handler
+from sanic_openid_connect_provider.handlers import well_known_openid_config_handler, well_known_oauth_config_handler, \
+    well_known_finger_handler, jwk_handler, userinfo_handler, client_register_handler
 from sanic_openid_connect_provider.models.clients import ClientStore, InMemoryClientStore
 from sanic_openid_connect_provider.models.code import CodeStore, InMemoryCodeStore
 from sanic_openid_connect_provider.models.token import TokenStore, InMemoryTokenStore
@@ -73,7 +74,8 @@ def setup_client(app: sanic.Sanic,
 
 
 def setup_provider(app: sanic.Sanic,
-                   wellknown_config_path: str = '/.well-known/openid-configuration',
+                   wellknown_openid_config_path: str = '/.well-known/openid-configuration',
+                   wellknown_oauth_config_path: str = '/.well-known/oauth-authorization-server',
                    wellknown_finger_path: str = '/.well-known/webfinger',
                    jwk_path: str = '/sso/oidc/jwk',
                    userinfo_path: str = '/sso/oidc/userinfo',
@@ -109,7 +111,8 @@ def setup_provider(app: sanic.Sanic,
     default_template_location = os.path.join(os.path.dirname(__file__), 'templates')
     app.extensions['jinja2'].env.loader.searchpath.append(default_template_location)
 
-    app.add_route(well_known_config_handler, wellknown_config_path, frozenset({'GET'}))
+    app.add_route(well_known_openid_config_handler, wellknown_openid_config_path, frozenset({'GET'}))
+    app.add_route(well_known_oauth_config_handler, wellknown_oauth_config_path, frozenset({'GET'}))
     app.add_route(well_known_finger_handler, wellknown_finger_path, frozenset({'GET'}))
     app.add_route(jwk_handler, jwk_path, frozenset({'GET', 'OPTIONS'}))
     app.add_route(userinfo_handler, userinfo_path, frozenset({'GET', 'POST', 'OPTIONS'}))

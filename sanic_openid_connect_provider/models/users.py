@@ -101,7 +101,7 @@ class UserManager(object):
         result = {}
 
         for key, value in dirty_dict.items():
-            if not value:
+            if isinstance(value, str) and value == '':
                 continue
             elif isinstance(value, dict):
                 result[key] = cls.clean_dict(value)
@@ -174,7 +174,9 @@ class UserManager(object):
 
         # Get all claims for the scope
         for scope in scopes:
-            if scope not in SCOPES:
+            if scope == 'openid':
+                continue
+            elif scope not in SCOPES:
                 logger.warning('Requested unknown scope {0}'.format(scope))
                 continue
 

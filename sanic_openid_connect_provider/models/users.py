@@ -103,6 +103,8 @@ class UserManager(object):
         for key, value in dirty_dict.items():
             if isinstance(value, str) and value == '':
                 continue
+            elif value is None:
+                continue
             elif isinstance(value, dict):
                 result[key] = cls.clean_dict(value)
             elif isinstance(value, (list, tuple, set)):

@@ -56,6 +56,11 @@ class Client(object):
         self.jwk_cache = jwcrypto.jwk.JWKSet()
 
     async def setup(self):
+        await self.autodiscover_settings()
+
+    async def autodiscover_settings(self):
+        success = True
+
         if self.autodiscover_url:
             logger.info('Getting OpenID Configuraiton from {0}'.format(self.autodiscover_url))
             try:
@@ -73,8 +78,11 @@ class Client(object):
 
             except Exception as err:
                 logger.exception('Failed to get OpenID Configuration', exc_info=err)
+                success = False
 
             await self.get_jwk_data()
+
+        return success
 
     def import_keys(self, keys: jwcrypto.jwk.JWKSet):
         for key in keys:
@@ -220,6 +228,16 @@ class Client(object):
                     'state': state,
                     'nonce': nonce
                 }
+
+                if not self.authorize_url:
+                    if self.autodiscover_url:
+                        success = await self.autodiscover_settings()
+                        if not success:
+                            return sanic.response.text(
+                                'SSO client library failed to autodiscover settings')
+                    else:
+                        # Settings not passed during setup.
+                        return sanic.response.text('SSO client library not setup correctly, authorize_url not provided')
 
                 redirect_url = list(urllib.parse.urlparse(self.authorize_url))
                 redirect_url[4] = urllib.parse.urlencode(params)

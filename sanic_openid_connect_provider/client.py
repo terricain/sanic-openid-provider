@@ -122,7 +122,7 @@ class Client(object):
         error = request.args.get('error')
         error_description = request.args.get('error_description')
 
-        if state != request['session']['oicp_state']:
+        if state != request.ctx['session']['oicp_state']:
             logger.warning('OICP State differs')
             return sanic.response.text('OpenID Connect State does not match request, something went wrong here')
 
@@ -176,23 +176,23 @@ class Client(object):
                 logger.exception('Failed to decode ID token', exc_info=err)
                 raise NotImplementedError()
 
-            if id_token['nonce'] != request['session']['oicp_nonce']:
+            if id_token['nonce'] != request.ctx['session']['oicp_nonce']:
                 logger.error('Token nonce invalid, possible replay attack')
                 raise NotImplementedError()
 
-            request['session']['user'] = id_token
-            request['session']['user']['expires_at'] = id_token['exp']
-            request['session']['user']['access_token'] = access_token
-            request['session']['user']['refresh_token'] = refresh_token
+            request.ctx['session']['user'] = id_token
+            request.ctx['session']['user']['expires_at'] = id_token['exp']
+            request.ctx['session']['user']['access_token'] = access_token
+            request.ctx['session']['user']['refresh_token'] = refresh_token
             logger.info('Got valid json token, user authenticated')
 
             if self.post_logon_callback:
-                await self.post_logon_callback(request['session'])
+                await self.post_logon_callback(request.ctx['session'])
 
-            next_url = request['session']['oicp_redirect']
-            del request['session']['oicp_redirect']
-            del request['session']['oicp_state']
-            del request['session']['oicp_nonce']
+            next_url = request.ctx['session']['oicp_redirect']
+            del request.ctx['session']['oicp_redirect']
+            del request.ctx['session']['oicp_state']
+            del request.ctx['session']['oicp_nonce']
             return redirect(next_url)
 
         except Exception as err:
@@ -203,12 +203,12 @@ class Client(object):
         def decorator(f):
             @wraps(f)
             async def decorated_function(request: sanic.request, *args, **kwargs) -> sanic.response.BaseHTTPResponse:
-                if 'user' in request['session']:
-                    if request['session']['user']['expires_at'] > datetime.datetime.now().timestamp():
+                if 'user' in request.ctx['session']:
+                    if request.ctx['session']['user']['expires_at'] > datetime.datetime.now().timestamp():
                         response = await f(request, *args, **kwargs)
                         return response
 
-                    del request['session']['user']
+                    del request.ctx['session']['user']
 
                 current_url = list(urllib.parse.urlparse(request.url))
                 current_url[0] = get_scheme(request)
@@ -216,9 +216,9 @@ class Client(object):
 
                 state = str(uuid.uuid4())
                 nonce = str(uuid.uuid4())
-                request['session']['oicp_state'] = state
-                request['session']['oicp_redirect'] = current_url
-                request['session']['oicp_nonce'] = nonce
+                request.ctx['session']['oicp_state'] = state
+                request.ctx['session']['oicp_redirect'] = current_url
+                request.ctx['session']['oicp_nonce'] = nonce
 
                 params = {
                     'scope': self.string_scopes,
@@ -252,8 +252,8 @@ class Client(object):
         def decorator(f):
             @wraps(f)
             async def decorated_function(request: sanic.request, *args, **kwargs) -> sanic.response.BaseHTTPResponse:
-                if 'user' in request['session']:
-                    if request['session']['user']['expires_at'] > datetime.datetime.now().timestamp():
+                if 'user' in request.ctx['session']:
+                    if request.ctx['session']['user']['expires_at'] > datetime.datetime.now().timestamp():
                         response = await f(request, *args, **kwargs)
                         return response
 

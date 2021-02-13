@@ -66,7 +66,7 @@ oicp_provider = setup_provider(
 #
 #     id_token_dic = create_id_token(
 #         token=token,
-#         user=request['session']['user'],
+#         user=request.ctx['session']['user'],
 #         aud=params['client_id'],
 #         nonce=params['code_obj']['nonce'],
 #         at_hash=token['at_hash'],
@@ -102,8 +102,8 @@ async def login(request: sanic.request.Request) -> sanic.response.BaseHTTPRespon
 
     else:
         # POST
-        request['session']['authenticated'] = True
-        request['session']['user'] = {
+        request.ctx['session']['authenticated'] = True
+        request.ctx['session']['user'] = {
             'username': 'testuser',
             'consent': False,
             'auth_time': datetime.datetime.now().timestamp(),

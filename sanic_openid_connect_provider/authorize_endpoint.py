@@ -242,7 +242,7 @@ async def authorize_handler(request: sanic.request.Request) -> sanic.response.Ba
                     raise AuthorizeError(params['redirect_uri'], 'login_required', params['grant_type'])
                 else:
                     # If login is in prompt arg
-                    request['session'].clear()
+                    request.ctx['session'].clear()
                     next_page = strip_prompt_login(get_request_url(request))
                     return redirect(request.app.url_for(provider.login_function_name, next=next_page))
 
@@ -251,7 +251,7 @@ async def authorize_handler(request: sanic.request.Request) -> sanic.response.Ba
                     logger.warning('select_account prompt along with none prompt')
                     raise AuthorizeError(params['redirect_uri'], 'account_selection_required', params['grant_type'])
                 else:
-                    request['session'].clear()
+                    request.ctx['session'].clear()
                     return redirect(request.app.url_for(provider.login_function_name, next=get_request_url(request)))
 
             if {'none', 'consent'} <= params['prompt']:  # Tests if both none and consent in prompt

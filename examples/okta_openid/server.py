@@ -36,7 +36,7 @@ oicp_client = setup_client(
 @app.route('/secret', methods=['GET'])
 @oicp_client.login_required()
 async def secret(request: sanic.request.Request) -> sanic.response.BaseHTTPResponse:
-    return sanic.response.text('secret page:\n{0}'.format(json.dumps(dict(request['session']))))
+    return sanic.response.text('secret page:\n{0}'.format(json.dumps(dict(request.ctx['session']))))
 
 
 @app.route('/', methods=['GET'])

@@ -9,7 +9,7 @@ with open('README.rst') as readme_file:
     readme = readme_file.read()
 
 requirements = [
-    'sanic>=0.8.3',
+    'sanic>=20.9.1',
     'PyJWT>=1.6.4',
     'jwcrypto>=0.6.0',
     'aiohttp>=3.4.4',

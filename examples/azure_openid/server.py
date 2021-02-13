@@ -34,7 +34,7 @@ oicp_client = setup_client(
 @app.route('/secret', methods=['GET'])
 @oicp_client.login_required()
 async def secret(request: sanic.request.Request) -> sanic.response.BaseHTTPResponse:
-    user_session = dict(request.ctx['session'])
+    user_session = dict(request.ctx.session)
 
     # Microsoft graph
     url = 'https://graph.microsoft.com/v1.0/users/' + user_session['user']['oid']

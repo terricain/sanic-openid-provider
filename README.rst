@@ -5,7 +5,7 @@ Sanic OpenID Connect Provider
         :target: https://pypi.python.org/pypi/sanic_openid_connect_provider
 
 .. image:: https://img.shields.io/travis/terrycain/sanic-openid-provider.svg
-        :target: https://travis-ci.org/terrycain/sanic-openid-provider
+        :target: https://travis-ci.com/terrycain/sanic-openid-provider
 
 .. image:: https://pyup.io/repos/github/terrycain/sanic-openid-provider/shield.svg
      :target: https://pyup.io/repos/github/terrycain/sanic-openid-provider/

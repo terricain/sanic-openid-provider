@@ -26,7 +26,7 @@ To run the example you need to provide the following environment variables when 
 
 Then goto http://localhost:8006, there will be a link to a protected page, when clicked you'll be send to okta for authentication (seamless if your
 already logged in) and then redirected back to a callback page which deals with the Okta response. The page will then load and you'll see a json
-representation of the entire session, the part your interested in is `request.ctx['session']['user']`
+representation of the entire session, the part your interested in is `request.ctx.session['user']`
 
 Should see logging similar to this:
 ```

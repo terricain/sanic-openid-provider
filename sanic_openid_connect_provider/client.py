@@ -177,7 +177,7 @@ class Client(object):
             raise NotImplementedError()
 
         # Check nonce's
-        if id_token["nonce"] != request.ctx.session["oicp_nonce"]:
+        if auth_code and id_token["nonce"] != request.ctx.session["oicp_nonce"]:
             logger.error("Token nonce invalid, possible replay attack")
             raise NotImplementedError()
 
@@ -191,8 +191,10 @@ class Client(object):
         if self.post_logon_callback:
             await self.post_logon_callback(request.ctx.session)
 
-        del request.ctx.session["oicp_state"]
-        del request.ctx.session["oicp_nonce"]
+        if "oicp_state" in request.ctx.session:
+            del request.ctx.session["oicp_state"]
+        if "oicp_nonce" in request.ctx.session:
+            del request.ctx.session["oicp_nonce"]
 
         return id_token, access_token, refresh_token
 

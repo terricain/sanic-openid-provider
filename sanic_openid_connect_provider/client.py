@@ -1,10 +1,11 @@
+import typing
 import uuid
 import logging
 import urllib.parse
 import datetime
 import os
 from functools import wraps
-from typing import Optional, List, Callable, Awaitable, Dict, Any
+from typing import Optional, List, Callable, Awaitable, Dict, Any, Tuple
 
 import aiohttp
 import jwt
@@ -30,14 +31,18 @@ class Client(object):
                  jwk_url: Optional[str] = None,
                  access_userinfo: bool = False,
                  scopes: List = ('openid',),
-                 post_logon_callback: Optional[Callable[[Dict[str, Any]], Awaitable[None]]] = None
+                 try_refresh: bool = False,
+                 post_logon_callback: Optional[Callable[[Dict[str, Any]], Awaitable[None]]] = None,
+                 http_proxy: Optional[str] = None,
                  ):
+        self.proxy = http_proxy or os.environ.get('http_proxy', os.environ.get('HTTP_PROXY', None))
         self.id = client_id
         self.secret = client_secret
         self.id_token_sign_type = signature_type
         self.callback_path = callback_path
         self.autodiscover_url = None
         self.issuer = None
+        self.try_refresh = try_refresh
         if autodiscover_base:
             self.autodiscover_url = autodiscover_base.rstrip('/') + '/.well-known/openid-configuration'
         else:
@@ -116,6 +121,79 @@ class Client(object):
         callback_url[1] = request.host
         return urllib.parse.urlunparse(callback_url)
 
+    async def post_token_endpoint(self, request: sanic.request, auth_code: Optional[str] = None, refresh_token: Optional[str] = None) -> Tuple[dict, str, Optional[str]]:
+        # Now we ask for token plz
+        payload = {
+            'client_id': self.id,
+            'client_secret': self.secret,
+            'redirect_uri': self.get_callback_url(request),
+        }
+        if auth_code:
+            payload['grant_type'] = 'authorization_code'
+            payload['code'] = auth_code
+        elif refresh_token:
+            payload['grant_type'] = 'refresh_token'
+            payload['refresh_token'] = refresh_token
+        else:
+            raise ValueError("auth_code or refresh_token must be supplied")
+
+        async with aiohttp.ClientSession() as session:
+            async with session.post(self.token_url, data=payload, proxy=self.proxy) as resp:
+                if resp.status > 299:
+                    raise ValueError("Status code from /token endpoint is not 200")
+                json_data = await resp.json()
+
+        if 'error' in json_data:
+            logger.error('OpenID Connect error. {0}'.format(json_data))
+            raise ValueError('Failed to get SSO token')
+
+        access_token = json_data['access_token']
+        refresh_token = json_data.get('refresh_token')
+        id_token = json_data['id_token']
+
+        jwt_header = jwt.get_unverified_header(id_token)
+        key_id = jwt_header['kid']
+
+        if jwt_header['alg'] != self.id_token_sign_type:
+            # TODO deal with error
+            raise NotImplementedError('invalid sign type')
+
+        # Get key from cache or from JWKS url
+        key = self.jwk_cache.get_key(key_id)
+        if not key:
+            await self.get_jwk_data()
+
+            key = self.jwk_cache.get_key(key_id)
+            if not key:
+                # TODO deal with error
+                raise NotImplementedError('no key')
+
+        try:
+            id_token = jwt.decode(id_token, key.export_to_pem(), algorithms=self.id_token_sign_type, audience=self.id)
+        except Exception as err:
+            logger.exception('Failed to decode ID token', exc_info=err)
+            raise NotImplementedError()
+
+        # Check nonce's
+        if id_token['nonce'] != request.ctx.session['oicp_nonce']:
+            logger.error('Token nonce invalid, possible replay attack')
+            raise NotImplementedError()
+
+        # Load data into the session
+        request.ctx.session['user'] = id_token
+        request.ctx.session['user']['expires_at'] = id_token['exp']
+        request.ctx.session['user']['access_token'] = access_token
+        request.ctx.session['user']['refresh_token'] = refresh_token
+        logger.info('Got valid json token, user authenticated')
+
+        if self.post_logon_callback:
+            await self.post_logon_callback(request.ctx.session)
+
+        del request.ctx.session['oicp_state']
+        del request.ctx.session['oicp_nonce']
+
+        return id_token, access_token, refresh_token
+
     async def handle_callback(self, request: sanic.request) -> sanic.response.BaseHTTPResponse:
         code = request.args.get('code')
         state = request.args.get('state')
@@ -130,74 +208,17 @@ class Client(object):
             logger.warning('OICP error {0}'.format(error))
             return sanic.response.text('OpenID Connect Error {0} - {1}'.format(error, error_description))
 
-        # Now we ask for token plz
-        payload = {
-            'client_id': self.id,
-            'client_secret': self.secret,
-            'grant_type': 'authorization_code',
-            'code': code,
-            'redirect_uri': self.get_callback_url(request),
-        }
-
         try:
-            proxy = os.environ.get('http_proxy', os.environ.get('HTTP_PROXY', None))
-
-            async with aiohttp.ClientSession() as session:
-                async with session.post(self.token_url, data=payload, proxy=proxy) as resp:
-                    json_data = await resp.json()
-
-            if 'error' in json_data:
-                logger.error('OpenID Connect error. {0}'.format(json_data))
-                return sanic.response.text('Failed to get SSO token')
-
-            access_token = json_data['access_token']
-            refresh_token = json_data.get('refresh_token')
-            id_token = json_data['id_token']
-
-            jwt_header = jwt.get_unverified_header(id_token)
-            key_id = jwt_header['kid']
-
-            if jwt_header['alg'] != self.id_token_sign_type:
-                # TODO deal with error
-                raise NotImplementedError('invalid sign type')
-
-            key = self.jwk_cache.get_key(key_id)
-            if not key:
-                await self.get_jwk_data()
-
-                key = self.jwk_cache.get_key(key_id)
-                if not key:
-                    # TODO deal with error
-                    raise NotImplementedError('no key')
-
-            try:
-                id_token = jwt.decode(id_token, key.export_to_pem(), algorithms=self.id_token_sign_type, audience=self.id)
-            except Exception as err:
-                logger.exception('Failed to decode ID token', exc_info=err)
-                raise NotImplementedError()
-
-            if id_token['nonce'] != request.ctx.session['oicp_nonce']:
-                logger.error('Token nonce invalid, possible replay attack')
-                raise NotImplementedError()
-
-            request.ctx.session['user'] = id_token
-            request.ctx.session['user']['expires_at'] = id_token['exp']
-            request.ctx.session['user']['access_token'] = access_token
-            request.ctx.session['user']['refresh_token'] = refresh_token
-            logger.info('Got valid json token, user authenticated')
-
-            if self.post_logon_callback:
-                await self.post_logon_callback(request.ctx.session)
-
-            next_url = request.ctx.session['oicp_redirect']
-            del request.ctx.session['oicp_redirect']
-            del request.ctx.session['oicp_state']
-            del request.ctx.session['oicp_nonce']
-            return redirect(next_url)
-
+            await self.post_token_endpoint(auth_code=code, request=request)
+        except ValueError as error:
+            return sanic.response.text(error)
         except Exception as err:
             logger.exception('Failed to hit token url', exc_info=err)
             return sanic.response.text('Failed to get SSO token')
+
+        next_url = request.ctx.session['oicp_redirect']
+        del request.ctx.session['oicp_redirect']
+        return redirect(next_url)
 
     def login_required(self):
         def decorator(f):
@@ -208,7 +229,19 @@ class Client(object):
                         response = await f(request, *args, **kwargs)
                         return response
 
-                    del request.ctx.session['user']
+                    # Try refreshing access token to avoid a redirect
+                    if request.ctx.session['user']['refresh_token']:
+                        try:
+                            await self.post_token_endpoint(request=request, refresh_token=request.ctx.session['user']['refresh_token'])
+                            logger.debug("Successfully refreshed tokens")
+                        except Exception:
+                            pass  # We've tried, we encountered an error, redirect the user
+                        else:
+                            # Success, now process the response
+                            response = await f(request, *args, **kwargs)
+                            return response
+
+                    del request.ctx.session['user']  # User has expired, remove data
 
                 current_url = list(urllib.parse.urlparse(request.url))
                 current_url[0] = get_scheme(request)
@@ -256,6 +289,19 @@ class Client(object):
                     if request.ctx.session['user']['expires_at'] > datetime.datetime.now().timestamp():
                         response = await f(request, *args, **kwargs)
                         return response
+
+                    if request.ctx.session['user']['refresh_token']:
+                        try:
+                            await self.post_token_endpoint(request=request, refresh_token=request.ctx.session['user']['refresh_token'])
+                            logger.debug("Successfully refreshed tokens")
+                        except Exception:
+                            pass  # We've tried, we encountered an error, redirect the user
+                        else:
+                            # Success, now process the response
+                            response = await f(request, *args, **kwargs)
+                            return response
+
+                    del request.ctx.session['user']  # User has expired, remove data
 
                 return sanic.response.json({}, status=403)
 

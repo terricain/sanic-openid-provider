@@ -16,10 +16,7 @@ from sanic_openid_connect_provider.token_endpoint import token_handler
 from sanic_openid_connect_provider.utils import masked
 from sanic_openid_connect_provider.client import Client
 
-try:
-    from sanic_openid_connect_provider.version import version as __version__
-except ImportError:
-    __version__ = 'unknown'
+__version__ = '0.0.0'
 
 
 logger = logging.getLogger('oicp')
